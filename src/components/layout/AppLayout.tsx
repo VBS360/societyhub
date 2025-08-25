@@ -160,10 +160,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Top Navigation */}
           <header className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-6">
             <div className="flex items-center gap-4">
-              <SidebarTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-4 w-4" />
-                </Button>
+              <SidebarTrigger>
+                <Menu className="h-4 w-4" />
               </SidebarTrigger>
               <div>
                 <h1 className="text-lg font-semibold text-foreground">
