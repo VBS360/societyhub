@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { 
   Building2, 
   Home, 
@@ -64,6 +64,7 @@ const roleLabels = {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { user, profile, signOut, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -97,7 +98,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <SidebarMenu>
               {navigation.map((item) => {
                 const Icon = item.icon;
-                const isActive = window.location.pathname === item.href;
+                const isActive = location.pathname === item.href;
                 
                 return (
                   <SidebarMenuItem key={item.name}>
@@ -106,10 +107,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                       isActive={isActive}
                       className="w-full justify-start"
                     >
-                      <a href={item.href} className="flex items-center gap-3 px-3 py-2">
+                      <Link to={item.href} className="flex items-center gap-3 px-3 py-2">
                         <Icon className="h-4 w-4" />
                         <span>{item.name}</span>
-                      </a>
+                      </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
@@ -165,7 +166,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               </SidebarTrigger>
               <div>
                 <h1 className="text-lg font-semibold text-foreground">
-                  {navigation.find(item => item.href === window.location.pathname)?.name || 'Dashboard'}
+                  {navigation.find(item => item.href === location.pathname)?.name || 'Dashboard'}
                 </h1>
                 {profile?.unit_number && (
                   <p className="text-sm text-muted-foreground">
