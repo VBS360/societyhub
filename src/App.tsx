@@ -15,6 +15,9 @@ import Visitors from "./pages/Visitors";
 import Amenities from "./pages/Amenities";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Landing from "./pages/Landing";
+import Documents from "./pages/Documents";
+import Chat from "./pages/Chat";
 
 const queryClient = new QueryClient();
 
@@ -26,7 +29,8 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/dashboard" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/members" element={<Members />} />
             <Route path="/finances" element={<Finances />} />
@@ -35,6 +39,8 @@ const App = () => (
             <Route path="/events" element={<Events />} />
             <Route path="/visitors" element={<Visitors />} />
             <Route path="/amenities" element={<Amenities />} />
+            <Route path="/documents" element={<Documents />} />
+            <Route path="/chat" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useMemo, useState } from 'react';
+import { MonthCalendar } from '@/components/events/MonthCalendar';
 
 const mockEvents = [
   {
@@ -119,12 +121,30 @@ const formatDate = (dateString: string) => {
 };
 
 const Events = () => {
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const stats = {
     total: mockEvents.length,
     upcoming: mockEvents.filter(e => e.status === 'upcoming').length,
     completed: mockEvents.filter(e => e.status === 'completed').length,
     totalAttendees: mockEvents.reduce((sum, e) => sum + e.currentAttendees, 0),
   };
+
+  const eventsForCalendar = useMemo(
+    () => mockEvents.map(({ id, title, eventDate }) => ({ id, title, eventDate })),
+    []
+  );
+
+  const filteredEvents = useMemo(() => {
+    if (!selectedDate) return mockEvents;
+    return mockEvents.filter((e) => {
+      const d = new Date(e.eventDate);
+      return (
+        d.getFullYear() === selectedDate.getFullYear() &&
+        d.getMonth() === selectedDate.getMonth() &&
+        d.getDate() === selectedDate.getDate()
+      );
+    });
+  }, [selectedDate]);
 
   return (
     <AppLayout>
@@ -202,23 +222,37 @@ const Events = () => {
           </Card>
         </div>
 
-        {/* Search and Filter */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Input 
-              placeholder="Search events by title, category, or organizer..." 
-              className="pl-4"
-            />
+        {/* Calendar + Search */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+            <MonthCalendar events={eventsForCalendar} selected={selectedDate} onSelect={setSelectedDate} />
           </div>
-          <Button variant="outline" className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filter
-          </Button>
+          <div className="lg:col-span-2 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Input 
+                  placeholder="Search events by title, category, or organizer..." 
+                  className="pl-4"
+                />
+              </div>
+              <Button variant="outline" className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                Filter
+              </Button>
+            </div>
+
+            {selectedDate && (
+              <div className="text-sm text-muted-foreground">
+                Showing events for {selectedDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                <Button variant="link" className="ml-2 px-1" onClick={() => setSelectedDate(null)}>Clear</Button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Events Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {mockEvents.map((event) => (
+          {filteredEvents.map((event) => (
             <Card key={event.id} className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between mb-2">
