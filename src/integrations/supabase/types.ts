@@ -634,7 +634,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin_in_society: {
+        Args: { target_society: string }
+        Returns: boolean
+      }
     }
     Enums: {
       complaint_status: "open" | "in_progress" | "resolved" | "closed"
