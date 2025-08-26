@@ -1,22 +1,28 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Building2, ShieldCheck, Zap, Users, Calendar, CreditCard } from "lucide-react";
+import { ShieldCheck, Zap, Users, Calendar, CreditCard } from "lucide-react";
 
 const gradients = "bg-[radial-gradient(80%_60%_at_50%_-20%,hsl(var(--primary)/0.25),transparent_60%),radial-gradient(60%_40%_at_80%_10%,hsl(var(--muted-foreground)/0.25),transparent_40%)]";
 
 export default function Landing() {
   return (
-    <div className={`min-h-screen ${gradients} relative overflow-hidden`}>\n      {/* Decorative blur blobs */}
+    <div className={`min-h-screen ${gradients} relative overflow-hidden`}>
+      {/* Decorative blur blobs */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute left-1/2 top-[-10%] h-[40rem] w-[40rem] -translate-x-1/2 rounded-full bg-primary/20 blur-[120px]" />
       </div>
 
       {/* Top Nav */}
       <header className="container mx-auto flex h-16 items-center justify-between px-6">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="p-2 rounded-lg bg-primary/10 ring-1 ring-primary/20">
-            <Building2 className="h-5 w-5 text-primary" />
+        <Link to="/landing" className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-primary/10 ring-1 ring-primary/20 overflow-hidden">
+            <img
+              src="/android-chrome-192x192.png"
+              alt="SocietyHub"
+              className="h-full w-full object-contain"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/favicon.ico'; }}
+            />
           </div>
           <span className="font-semibold">SocietyHub</span>
         </Link>
@@ -26,10 +32,10 @@ export default function Landing() {
           <a href="#pricing" className="hover:text-foreground">Pricing</a>
         </nav>
         <div className="flex items-center gap-2">
-          <Link to="/auth">
+          <Link to="/login">
             <Button variant="ghost">Sign in</Button>
           </Link>
-          <Link to="/dashboard">
+          <Link to="/signup">
             <Button>Launch app</Button>
           </Link>
         </div>
@@ -47,7 +53,7 @@ export default function Landing() {
             Billing, maintenance, events, announcements, and member management — unified in a delightful, modern workspace.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link to="/auth"><Button size="lg">Get started free</Button></Link>
+            <Link to="/signup"><Button size="lg">Get started free</Button></Link>
             <a href="#features"><Button size="lg" variant="outline">Explore features</Button></a>
           </div>
           <div className="mt-6 text-xs text-muted-foreground">No credit card required</div>
@@ -111,7 +117,7 @@ export default function Landing() {
           <h3 className="text-2xl font-semibold">Start managing your society today</h3>
           <p className="mt-2 text-muted-foreground">Kick off with sample data. Upgrade anytime.</p>
           <div className="mt-6 flex items-center justify-center gap-3">
-            <Link to="/auth"><Button size="lg">Create account</Button></Link>
+            <Link to="/signup"><Button size="lg">Create account</Button></Link>
             <Link to="/dashboard"><Button size="lg" variant="outline">View dashboard</Button></Link>
           </div>
         </div>

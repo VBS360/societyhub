@@ -1,7 +1,6 @@
 import { Navigate, Link, useLocation } from 'react-router-dom';
 
 import { 
-  Building2, 
   Home, 
   Users, 
   CreditCard, 
@@ -80,7 +79,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return (
@@ -89,8 +88,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Sidebar className="border-r border-sidebar-border">
           <SidebarHeader className="p-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-primary/10 ring-1 ring-primary/20">
-                <Building2 className="h-6 w-6 text-primary" />
+              <div className="h-8 w-8 rounded-lg bg-primary/10 ring-1 ring-primary/20 overflow-hidden">
+                <img
+                  src="/android-chrome-192x192.png"
+                  alt="SocietyHub"
+                  className="h-full w-full object-contain"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/favicon.ico'; }}
+                />
               </div>
               <div>
                 <h2 className="font-semibold text-sidebar-foreground">SocietyHub</h2>

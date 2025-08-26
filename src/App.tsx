@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
+import Login from "./pages/Login";
+import Signup from "@/pages/Signup";
+import ResetPassword from "@/pages/ResetPassword";
 import Members from "./pages/Members";
 import Finances from "./pages/Finances";
 import Maintenance from "./pages/Maintenance";
@@ -30,8 +32,12 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/landing" element={<Landing />} />
             <Route path="/dashboard" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
+            {/* Legacy auth page retained temporarily; new routes below */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/members" element={<Members />} />
             <Route path="/finances" element={<Finances />} />
             <Route path="/maintenance" element={<Maintenance />} />
