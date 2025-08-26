@@ -1,6 +1,6 @@
 import { Navigate, Link, useLocation } from 'react-router-dom';
+
 import { 
-  Building2, 
   Home, 
   Users, 
   CreditCard, 
@@ -12,7 +12,8 @@ import {
   Settings,
   LogOut,
   Menu,
-  Bell
+  Bell,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -29,13 +30,14 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
+import BottomNav from '@/components/layout/BottomNav';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Members', href: '/members', icon: Users },
   { name: 'Finances', href: '/finances', icon: CreditCard },
   { name: 'Maintenance', href: '/maintenance', icon: Wrench },
@@ -43,6 +45,8 @@ const navigation = [
   { name: 'Events', href: '/events', icon: Calendar },
   { name: 'Visitors', href: '/visitors', icon: Shield },
   { name: 'Amenities', href: '/amenities', icon: Car },
+  { name: 'Documents', href: '/documents', icon: FileText },
+  { name: 'Chat', href: '/chat', icon: MessageSquare },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -75,17 +79,22 @@ export function AppLayout({ children }: AppLayoutProps) {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full overflow-x-hidden">
         <Sidebar className="border-r border-sidebar-border">
           <SidebarHeader className="p-4">
             <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-primary/10 ring-1 ring-primary/20">
-                <Building2 className="h-6 w-6 text-primary" />
+              <div className="h-8 w-8 rounded-lg bg-primary/10 ring-1 ring-primary/20 overflow-hidden">
+                <img
+                  src="/android-chrome-192x192.png"
+                  alt="SocietyHub"
+                  className="h-full w-full object-contain"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/favicon.ico'; }}
+                />
               </div>
               <div>
                 <h2 className="font-semibold text-sidebar-foreground">SocietyHub</h2>
@@ -157,7 +166,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </SidebarFooter>
         </Sidebar>
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Top Navigation */}
           <header className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-6">
             <div className="flex items-center gap-4">
@@ -199,9 +208,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           </header>
 
           {/* Main Content */}
-          <main className="flex-1 overflow-auto bg-muted/30">
+          <main className="flex-1 overflow-auto bg-muted/30 pb-16 md:pb-0 min-w-0">
             {children}
           </main>
+          {/* Mobile Bottom Navigation */}
+          <BottomNav />
         </div>
       </div>
     </SidebarProvider>
