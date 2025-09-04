@@ -1,68 +1,13 @@
-import { Search, Filter, Plus, Mail, Phone, MapPin } from 'lucide-react';
+import { Search, Filter, Plus, Mail, Phone, MapPin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useMembers } from '@/hooks/useMembers';
+import { useState } from 'react';
 
-const mockMembers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    unit: 'A-101',
-    role: 'resident',
-    email: 'john.doe@email.com',
-    phone: '+91 9876543210',
-    isOwner: true,
-    familySize: 4,
-    joinDate: '2023-01-15'
-  },
-  {
-    id: '2',
-    name: 'Sarah Johnson',
-    unit: 'B-205',
-    role: 'committee_member',
-    email: 'sarah.j@email.com',
-    phone: '+91 9876543211',
-    isOwner: true,
-    familySize: 2,
-    joinDate: '2022-08-20'
-  },
-  {
-    id: '3',
-    name: 'Mike Wilson',
-    unit: 'C-302',
-    role: 'society_admin',
-    email: 'mike.wilson@email.com',
-    phone: '+91 9876543212',
-    isOwner: false,
-    familySize: 3,
-    joinDate: '2023-03-10'
-  },
-  {
-    id: '4',
-    name: 'Emily Davis',
-    unit: 'A-505',
-    role: 'resident',
-    email: 'emily.davis@email.com',
-    phone: '+91 9876543213',
-    isOwner: true,
-    familySize: 1,
-    joinDate: '2023-06-05'
-  },
-  {
-    id: '5',
-    name: 'Robert Brown',
-    unit: 'B-108',
-    role: 'resident',
-    email: 'robert.brown@email.com',
-    phone: '+91 9876543214',
-    isOwner: false,
-    familySize: 5,
-    joinDate: '2022-12-12'
-  }
-];
 
 const roleColors = {
   resident: 'bg-secondary text-secondary-foreground',
@@ -79,6 +24,8 @@ const roleLabels = {
 };
 
 const Members = () => {
+  const { members, loading, error, totalMembers, owners, tenants, totalResidents } = useMembers();
+  const [searchQuery, setSearchQuery] = useState('');
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -103,6 +50,8 @@ const Members = () => {
             <Input 
               placeholder="Search members by name, unit, or email..." 
               className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <Button variant="outline" className="flex items-center gap-2">
@@ -116,7 +65,7 @@ const Members = () => {
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50 border-blue-200 dark:border-blue-800">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                {mockMembers.length}
+                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : totalMembers}
               </div>
               <p className="text-sm text-blue-600 dark:text-blue-400">Total Members</p>
             </CardContent>
@@ -124,7 +73,7 @@ const Members = () => {
           <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/50 border-green-200 dark:border-green-800">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                {mockMembers.filter(m => m.isOwner).length}
+                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : owners}
               </div>
               <p className="text-sm text-green-600 dark:text-green-400">Owners</p>
             </CardContent>
@@ -132,7 +81,7 @@ const Members = () => {
           <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50 border-purple-200 dark:border-purple-800">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                {mockMembers.filter(m => !m.isOwner).length}
+                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : tenants}
               </div>
               <p className="text-sm text-purple-600 dark:text-purple-400">Tenants</p>
             </CardContent>
@@ -140,64 +89,99 @@ const Members = () => {
           <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/50 border-orange-200 dark:border-orange-800">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                {mockMembers.reduce((sum, m) => sum + m.familySize, 0)}
+                {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : totalResidents}
               </div>
               <p className="text-sm text-orange-600 dark:text-orange-400">Total Residents</p>
             </CardContent>
           </Card>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-destructive">{error}</p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Members Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockMembers.map((member) => (
-            <Card key={member.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-12 w-12">
-                      <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
-                        {member.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-lg">{member.name}</CardTitle>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          {member.unit}
-                        </Badge>
-                        <Badge className={`text-xs ${roleColors[member.role]}`}>
-                          {roleLabels[member.role]}
-                        </Badge>
+        {!loading && !error && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {members
+              .filter(member => 
+                searchQuery === '' || 
+                member.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (member.unit_number && member.unit_number.toLowerCase().includes(searchQuery.toLowerCase()))
+              )
+              .map((member) => (
+                <Card key={member.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-12 w-12">
+                          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
+                            {member.full_name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <CardTitle className="text-lg">{member.full_name}</CardTitle>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              <MapPin className="h-3 w-3 mr-1" />
+                              {member.unit_number || 'N/A'}
+                            </Badge>
+                            <Badge className={`text-xs ${roleColors[member.role] || roleColors.resident}`}>
+                              {roleLabels[member.role] || 'Resident'}
+                            </Badge>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Mail className="h-4 w-4" />
-                    <span className="truncate">{member.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Phone className="h-4 w-4" />
-                    <span>{member.phone}</span>
-                  </div>
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="text-sm">
-                      <span className="font-medium">{member.isOwner ? 'Owner' : 'Tenant'}</span>
-                      <span className="text-muted-foreground"> • {member.familySize} members</span>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Mail className="h-4 w-4" />
+                        <span className="truncate">{member.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Phone className="h-4 w-4" />
+                        <span>{member.phone || 'Not provided'}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="text-sm">
+                          <span className="font-medium">{member.is_owner ? 'Owner' : 'Tenant'}</span>
+                          <span className="text-muted-foreground"> • {member.family_members?.length || 1} members</span>
+                        </div>
+                        <Button variant="outline" size="sm">
+                          View Details
+                        </Button>
+                      </div>
                     </div>
-                    <Button variant="outline" size="sm">
-                      View Details
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  </CardContent>
+                </Card>
+              ))
+            }
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && !error && members.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">No members found in this society.</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );

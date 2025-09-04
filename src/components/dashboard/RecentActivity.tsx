@@ -7,8 +7,10 @@ import {
   MessageSquare, 
   Calendar,
   Users,
-  Car
+  Car,
+  Loader2
 } from 'lucide-react';
+import { useRecentActivity } from '@/hooks/useRecentActivity';
 
 interface ActivityItem {
   id: string;
@@ -44,83 +46,58 @@ interface RecentActivityProps {
 }
 
 export function RecentActivity({ userRole }: RecentActivityProps) {
-  const isAdmin = ['super_admin', 'society_admin', 'committee_member'].includes(userRole);
+  const { activities, loading, error } = useRecentActivity();
 
-  // Mock data - in real app, this would come from API
-  const residentActivities: ActivityItem[] = [
-    {
-      id: '1',
-      type: 'payment',
-      title: 'Maintenance Payment',
-      description: 'Monthly maintenance fee due',
-      timestamp: '2 days ago',
-      status: 'pending'
-    },
-    {
-      id: '2',
-      type: 'complaint',
-      title: 'Plumbing Issue',
-      description: 'Kitchen sink water leakage reported',
-      timestamp: '3 days ago',
-      status: 'pending'
-    },
-    {
-      id: '3',
-      type: 'announcement',
-      title: 'Water Tank Cleaning',
-      description: 'Scheduled for tomorrow 10 AM',
-      timestamp: '1 week ago'
-    }
-  ];
+  if (loading) {
+    return (
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">
+            Recent Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const adminActivities: ActivityItem[] = [
-    {
-      id: '1',
-      type: 'complaint',
-      title: 'Emergency Repair Request',
-      description: 'Elevator malfunction in Block B',
-      timestamp: '2 hours ago',
-      status: 'urgent',
-      user: { name: 'Rajesh Kumar', unit: 'B-304' }
-    },
-    {
-      id: '2',
-      type: 'payment',
-      title: 'Payment Received',
-      description: 'Maintenance fee for December',
-      timestamp: '4 hours ago',
-      status: 'completed',
-      user: { name: 'Priya Sharma', unit: 'A-201' }
-    },
-    {
-      id: '3',
-      type: 'visitor',
-      title: 'Visitor Request',
-      description: 'Guest entry approval needed',
-      timestamp: '6 hours ago',
-      status: 'pending',
-      user: { name: 'Amit Patel', unit: 'C-105' }
-    },
-    {
-      id: '4',
-      type: 'member',
-      title: 'New Registration',
-      description: 'Tenant registration completed',
-      timestamp: '1 day ago',
-      status: 'completed',
-      user: { name: 'Sarah Johnson', unit: 'A-403' }
-    },
-    {
-      id: '5',
-      type: 'event',
-      title: 'Event RSVP',
-      description: 'Annual general meeting attendance confirmed',
-      timestamp: '2 days ago',
-      user: { name: 'Multiple residents', unit: 'Various' }
-    }
-  ];
+  if (error) {
+    return (
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">
+            Recent Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center text-destructive py-8">
+            {error}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const activities = isAdmin ? adminActivities : residentActivities;
+  if (activities.length === 0) {
+    return (
+      <Card className="shadow-card">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold">
+            Recent Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center text-muted-foreground py-8">
+            No recent activity found
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="shadow-card">

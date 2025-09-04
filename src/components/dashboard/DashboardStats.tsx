@@ -7,8 +7,10 @@ import {
   Calendar, 
   TrendingUp,
   TrendingDown,
-  Clock
+  Clock,
+  Loader2
 } from 'lucide-react';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
 
 interface StatCardProps {
   title: string;
@@ -73,69 +75,95 @@ interface DashboardStatsProps {
 }
 
 export function DashboardStats({ userRole }: DashboardStatsProps) {
-  // Mock data - in real app, this would come from API
+  const stats = useDashboardStats();
   const isAdmin = ['super_admin', 'society_admin', 'committee_member'].includes(userRole);
 
-  const residentStats = [
-    {
-      title: 'Pending Dues',
-      value: '₹2,500',
-      change: { value: 'Due in 5 days', trend: 'neutral' as const },
-      icon: <CreditCard className="h-4 w-4" />,
-      description: 'Monthly maintenance'
-    },
-    {
-      title: 'My Complaints',
-      value: 2,
-      change: { value: '1 pending', trend: 'neutral' as const },
-      icon: <AlertTriangle className="h-4 w-4" />,
-      description: 'Active maintenance requests'
-    },
-    {
-      title: 'Upcoming Events',
-      value: 3,
-      change: { value: 'This month', trend: 'up' as const },
-      icon: <Calendar className="h-4 w-4" />,
-      description: 'Society events'
-    }
-  ];
+  if (stats.loading) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[...Array(isAdmin ? 4 : 3)].map((_, index) => (
+          <Card key={index} className="shadow-card">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-center h-20">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
-  const adminStats = [
-    {
-      title: 'Total Members',
-      value: 124,
-      change: { value: '+2 this month', trend: 'up' as const },
-      icon: <Users className="h-4 w-4" />,
-      description: 'Active residents'
-    },
-    {
-      title: 'Pending Dues',
-      value: '₹1,24,500',
-      change: { value: '15 pending', trend: 'down' as const },
-      icon: <CreditCard className="h-4 w-4" />,
-      description: 'Total outstanding'
-    },
-    {
-      title: 'Open Complaints',
-      value: 8,
-      change: { value: '-2 this week', trend: 'up' as const },
-      icon: <AlertTriangle className="h-4 w-4" />,
-      description: 'Pending resolution'
-    },
-    {
-      title: 'Collection Rate',
-      value: '92%',
-      change: { value: '+3% from last month', trend: 'up' as const },
-      icon: <TrendingUp className="h-4 w-4" />,
-      description: 'Payment compliance'
-    }
-  ];
+  if (stats.error) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="col-span-full">
+          <CardContent className="p-6 text-center">
+            <p className="text-destructive">{stats.error}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-  const stats = isAdmin ? adminStats : residentStats;
+  const dashboardStats = isAdmin
+    ? [
+        {
+          title: 'Total Members',
+          value: stats.totalMembers || 0,
+          change: { value: 'Active residents', trend: 'neutral' as const },
+          icon: <Users className="h-4 w-4" />,
+          description: 'Society members'
+        },
+        {
+          title: 'Pending Dues',
+          value: stats.pendingDues || '₹0',
+          change: { value: 'Outstanding amount', trend: 'neutral' as const },
+          icon: <CreditCard className="h-4 w-4" />,
+          description: 'Total pending'
+        },
+        {
+          title: 'Open Complaints',
+          value: stats.openComplaints || 0,
+          change: { value: 'Pending resolution', trend: 'neutral' as const },
+          icon: <AlertTriangle className="h-4 w-4" />,
+          description: 'Active issues'
+        },
+        {
+          title: 'Collection Rate',
+          value: stats.collectionRate || '0%',
+          change: { value: 'Payment compliance', trend: 'up' as const },
+          icon: <TrendingUp className="h-4 w-4" />,
+          description: 'This month'
+        }
+      ]
+    : [
+        {
+          title: 'Pending Dues',
+          value: stats.myDues || '₹0',
+          change: { value: 'Your pending amount', trend: 'neutral' as const },
+          icon: <CreditCard className="h-4 w-4" />,
+          description: 'Monthly maintenance'
+        },
+        {
+          title: 'My Complaints',
+          value: stats.myComplaints || 0,
+          change: { value: 'Active requests', trend: 'neutral' as const },
+          icon: <AlertTriangle className="h-4 w-4" />,
+          description: 'Pending resolution'
+        },
+        {
+          title: 'Upcoming Events',
+          value: stats.upcomingEvents || 0,
+          change: { value: 'This month', trend: 'up' as const },
+          icon: <Calendar className="h-4 w-4" />,
+          description: 'Society events'
+        }
+      ];
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {stats.map((stat, index) => (
+      {dashboardStats.map((stat, index) => (
         <StatCard key={index} {...stat} />
       ))}
     </div>
