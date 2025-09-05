@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useFinances } from '@/hooks/useFinances';
 
 const mockFinancials = {
   totalBalance: 285000,
@@ -61,6 +62,34 @@ const mockFinancials = {
 };
 
 const Finances = () => {
+  const { stats, maintenanceFees, expenses, loading, error } = useFinances();
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-48"></div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-32 bg-muted rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="text-center text-red-600">Error loading financial data: {error}</div>
+        </div>
+      </AppLayout>
+    );
+  }
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -97,7 +126,7 @@ const Finances = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                ₹{mockFinancials.totalBalance.toLocaleString('en-IN')}
+                ₹{stats.totalBalance.toLocaleString('en-IN')}
               </div>
               <div className="flex items-center text-xs text-green-600 dark:text-green-400 mt-1">
                 <TrendingUp className="h-3 w-3 mr-1" />
@@ -117,7 +146,7 @@ const Finances = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                ₹{mockFinancials.monthlyIncome.toLocaleString('en-IN')}
+                ₹{stats.monthlyIncome.toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                 From maintenance & fees
@@ -136,7 +165,7 @@ const Finances = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                ₹{mockFinancials.monthlyExpenses.toLocaleString('en-IN')}
+                ₹{stats.monthlyExpenses.toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
                 Operational costs
@@ -155,10 +184,10 @@ const Finances = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-700 dark:text-red-300">
-                ₹{mockFinancials.pendingDues.toLocaleString('en-IN')}
+                ₹{stats.pendingDues.toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                From 3 units
+                From {maintenanceFees.filter(f => f.status === 'pending').length} units
               </p>
             </CardContent>
           </Card>
@@ -175,43 +204,41 @@ const Finances = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockFinancials.recentTransactions.map((transaction) => (
-                  <div key={transaction.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                {maintenanceFees.slice(0, 5).map((fee) => (
+                  <div key={fee.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                     <div className="flex items-center gap-3">
                       <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                        transaction.type === 'income' 
+                        fee.status === 'paid' 
                           ? 'bg-green-100 dark:bg-green-900' 
                           : 'bg-red-100 dark:bg-red-900'
                       }`}>
-                        {transaction.type === 'income' ? (
-                          <TrendingUp className={`h-4 w-4 ${
-                            transaction.type === 'income' 
-                              ? 'text-green-600 dark:text-green-400' 
-                              : 'text-red-600 dark:text-red-400'
-                          }`} />
+                        {fee.status === 'paid' ? (
+                          <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
                         ) : (
                           <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                         )}
                       </div>
                       <div>
-                        <p className="font-medium text-sm">{transaction.description}</p>
+                        <p className="font-medium text-sm">
+                          {fee.description || `Maintenance Fee - ${fee.profiles?.full_name}`}
+                        </p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-xs">
-                            {transaction.category}
+                            {fee.status}
                           </Badge>
                           <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {new Date(transaction.date).toLocaleDateString()}
+                            {new Date(fee.due_date).toLocaleDateString()}
                           </span>
                         </div>
                       </div>
                     </div>
                     <div className={`font-medium ${
-                      transaction.type === 'income' 
+                      fee.status === 'paid' 
                         ? 'text-green-600 dark:text-green-400' 
                         : 'text-red-600 dark:text-red-400'
                     }`}>
-                      {transaction.type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString('en-IN')}
+                      {fee.status === 'paid' ? '+' : '-'}₹{Number(fee.amount).toLocaleString('en-IN')}
                     </div>
                   </div>
                 ))}
@@ -226,20 +253,20 @@ const Finances = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockFinancials.monthlyExpenseBreakdown.map((expense, index) => (
+                {expenses.slice(0, 5).map((expense, index) => (
                   <div key={index} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">{expense.category}</span>
-                      <span className="text-sm font-medium">₹{expense.amount.toLocaleString('en-IN')}</span>
+                      <span className="text-sm font-medium">₹{Number(expense.amount).toLocaleString('en-IN')}</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
                       <div 
                         className="h-2 bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300"
-                        style={{ width: `${expense.percentage}%` }}
+                        style={{ width: `${Math.min(100, (Number(expense.amount) / Math.max(...expenses.map(e => Number(e.amount)))) * 100)}%` }}
                       ></div>
                     </div>
-                    <div className="text-xs text-muted-foreground text-right">
-                      {expense.percentage}% of total
+                    <div className="text-xs text-muted-foreground">
+                      {expense.title} - {expense.profiles?.full_name}
                     </div>
                   </div>
                 ))}

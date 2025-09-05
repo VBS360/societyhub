@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useAmenities } from '@/hooks/useAmenities';
 
 const mockAmenities = [
   {
@@ -149,12 +150,34 @@ const formatDate = (dateString: string) => {
 };
 
 const Amenities = () => {
-  const stats = {
-    totalAmenities: mockAmenities.length,
-    activeAmenities: mockAmenities.filter(a => a.isActive).length,
-    totalBookings: mockBookings.length,
-    pendingBookings: mockBookings.filter(b => b.status === 'pending').length,
-  };
+  const { amenities, bookings, stats, loading, error } = useAmenities();
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-48"></div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-32 bg-muted rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="text-center text-red-600">Error loading amenities: {error}</div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -243,7 +266,7 @@ const Amenities = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockAmenities.map((amenity) => (
+                {amenities.map((amenity) => (
                   <div key={amenity.id} className="p-4 rounded-lg border bg-card hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
@@ -252,27 +275,23 @@ const Amenities = () => {
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <IndianRupee className="h-3 w-3" />
-                            <span>₹{amenity.bookingFee.toLocaleString('en-IN')}</span>
+                            <span>₹{Number(amenity.booking_fee).toLocaleString('en-IN')}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            <span>Max {amenity.maxHours}h</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            <span>{amenity.currentBookings} bookings</span>
+                            <span>Max {amenity.max_hours}h</span>
                           </div>
                         </div>
                       </div>
-                      <Badge className={amenity.isActive ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'}>
-                        {amenity.isActive ? 'Active' : 'Inactive'}
+                      <Badge className={amenity.is_active ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'}>
+                        {amenity.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between pt-2">
                       <span className="text-xs text-muted-foreground">
-                        Next available: {formatDate(amenity.nextAvailable)}
+                        Booking advance: {amenity.advance_booking_days} days
                       </span>
-                      <Button size="sm" variant="outline" disabled={!amenity.isActive}>
+                      <Button size="sm" variant="outline" disabled={!amenity.is_active}>
                         Book Now
                       </Button>
                     </div>
@@ -292,19 +311,21 @@ const Amenities = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockBookings.map((booking) => (
+                {bookings.map((booking) => (
                   <div key={booking.id} className="p-4 rounded-lg border bg-card">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <h4 className="font-semibold">{booking.amenityName}</h4>
+                        <h4 className="font-semibold">{booking.amenities?.name}</h4>
                         <p className="text-sm text-muted-foreground">{booking.purpose}</p>
                       </div>
                       <div className="flex gap-1">
-                        <Badge className={`text-xs ${statusColors[booking.status]}`}>
+                        <Badge className={`text-xs ${booking.status === 'confirmed' ? statusColors.confirmed : 
+                          booking.status === 'pending' ? statusColors.pending : statusColors.cancelled}`}>
                           {booking.status}
                         </Badge>
-                        <Badge className={`text-xs ${paymentStatusColors[booking.paymentStatus]}`}>
-                          {booking.paymentStatus}
+                        <Badge className={`text-xs ${booking.payment_status === 'paid' ? paymentStatusColors.paid : 
+                          booking.payment_status === 'pending' ? paymentStatusColors.pending : paymentStatusColors.failed}`}>
+                          {booking.payment_status}
                         </Badge>
                       </div>
                     </div>
@@ -313,17 +334,17 @@ const Amenities = () => {
                       <div className="flex items-center gap-1">
                         <Avatar className="h-5 w-5">
                           <AvatarFallback className="text-xs">
-                            {booking.bookedBy.split(' ').map(n => n[0]).join('')}
+                            {booking.profiles?.full_name?.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
                         </Avatar>
-                        <span>{booking.bookedBy}</span>
+                        <span>{booking.profiles?.full_name}</span>
                       </div>
-                      <span>{booking.unit}</span>
+                      <span>{booking.profiles?.unit_number}</span>
                     </div>
                     
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{new Date(booking.bookingDate).toLocaleDateString('en-IN')}</span>
-                      <span>{booking.startTime} - {booking.endTime}</span>
+                      <span>{new Date(booking.booking_date).toLocaleDateString('en-IN')}</span>
+                      <span>{booking.start_time} - {booking.end_time}</span>
                     </div>
                   </div>
                 ))}

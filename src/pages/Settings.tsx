@@ -8,8 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useAuth } from '@/hooks/useAuth';
+import RoleManagement from '@/components/settings/RoleManagement';
 
 const Settings = () => {
+  const { profile } = useAuth();
+  const canManageRoles = profile?.role && ['super_admin', 'society_admin'].includes(profile.role);
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -40,31 +44,32 @@ const Settings = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" defaultValue="John Doe" />
+                  <Input id="fullName" defaultValue={profile?.full_name || ''} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue="john.doe@email.com" />
+                  <Input id="email" type="email" defaultValue={profile?.email || ''} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" defaultValue="+91 9876543210" />
+                  <Input id="phone" defaultValue={profile?.phone || ''} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="unit">Unit Number</Label>
-                  <Input id="unit" defaultValue="A-101" />
+                  <Input id="unit" defaultValue={profile?.unit_number || ''} />
                 </div>
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="emergencyContact">Emergency Contact</Label>
-                <Input id="emergencyContact" placeholder="Emergency contact number" />
+                <Input id="emergencyContact" defaultValue={profile?.emergency_contact || ''} placeholder="Emergency contact number" />
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="vehicleDetails">Vehicle Details</Label>
                 <Textarea 
                   id="vehicleDetails" 
+                  defaultValue={profile?.vehicle_details || ''}
                   placeholder="Car model, registration number, parking slot, etc."
                   className="min-h-[80px]"
                 />
@@ -240,6 +245,9 @@ const Settings = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Role Management */}
+        <RoleManagement canManageRoles={canManageRoles} />
 
         {/* Society Settings (Admin Only) */}
         <Card>

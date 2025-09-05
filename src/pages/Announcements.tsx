@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useAnnouncements } from '@/hooks/useAnnouncements';
 
 const mockAnnouncements = [
   {
@@ -82,12 +83,10 @@ const isExpiringSoon = (expiresAt: string | null) => {
 };
 
 const Announcements = () => {
-  const stats = {
-    total: mockAnnouncements.length,
-    urgent: mockAnnouncements.filter(a => a.isUrgent).length,
-    pinned: mockAnnouncements.filter(a => a.isPinned).length,
-    expiringSoon: mockAnnouncements.filter(a => a.expiresAt && isExpiringSoon(a.expiresAt)).length,
-  };
+  const { announcements, stats, loading, error } = useAnnouncements();
+
+  if (loading) return <AppLayout><div className="p-6">Loading...</div></AppLayout>;
+  if (error) return <AppLayout><div className="p-6 text-red-600">Error: {error}</div></AppLayout>;
 
   return (
     <AppLayout>
@@ -167,7 +166,58 @@ const Announcements = () => {
 
         {/* Announcements List */}
         <div className="space-y-4">
-          {mockAnnouncements.map((announcement) => (
+          {announcements.map((announcement) => (
+            <Card key={announcement.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CardTitle className="text-xl">{announcement.title}</CardTitle>
+                      {announcement.is_urgent && (
+                        <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
+                          URGENT
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <User className="h-4 w-4" />
+                        <span>{announcement.profiles?.full_name}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
+                      {announcement.profiles?.full_name?.split(' ').map(n => n[0]).join('') || 'A'}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              </CardHeader>
+              
+              <CardContent className="pt-0">
+                <p className="text-muted-foreground leading-relaxed mb-4">
+                  {announcement.content}
+                </p>
+                
+                <div className="flex justify-end mt-4">
+                  <Button variant="outline" size="sm">
+                    View Details
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </AppLayout>
+  );
+};
             <Card key={announcement.id} className={`hover:shadow-lg transition-shadow ${
               announcement.isPinned ? 'ring-2 ring-primary/20 bg-primary/5' : ''
             }`}>
