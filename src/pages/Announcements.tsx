@@ -140,9 +140,9 @@ const Announcements = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                    {stats.pinned}
+                    {announcements.filter(a => a.is_urgent).length}
                   </div>
-                  <p className="text-sm text-purple-600 dark:text-purple-400">Pinned</p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">Active</p>
                 </div>
                 <Pin className="h-8 w-8 text-purple-600 dark:text-purple-400" />
               </div>
@@ -204,86 +204,6 @@ const Announcements = () => {
                 <p className="text-muted-foreground leading-relaxed mb-4">
                   {announcement.content}
                 </p>
-                
-                <div className="flex justify-end mt-4">
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </AppLayout>
-  );
-};
-            <Card key={announcement.id} className={`hover:shadow-lg transition-shadow ${
-              announcement.isPinned ? 'ring-2 ring-primary/20 bg-primary/5' : ''
-            }`}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      {announcement.isPinned && (
-                        <Pin className="h-4 w-4 text-primary" />
-                      )}
-                      <CardTitle className="text-xl">{announcement.title}</CardTitle>
-                      {announcement.isUrgent && (
-                        <Badge className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
-                          URGENT
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <User className="h-4 w-4" />
-                        <span>{announcement.createdBy}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{formatDate(announcement.createdAt)}</span>
-                      </div>
-                      {announcement.expiresAt && (
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          <span>Expires: {formatDate(announcement.expiresAt)}</span>
-                          {isExpiringSoon(announcement.expiresAt) && (
-                            <Badge variant="outline" className="ml-1 text-orange-600 border-orange-300">
-                              Expiring Soon
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
-                      {announcement.createdBy.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <p className="text-muted-foreground leading-relaxed mb-4">
-                  {announcement.content}
-                </p>
-                
-                {announcement.attachments.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium">Attachments:</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {announcement.attachments.map((attachment, index) => (
-                        <Badge key={index} variant="outline" className="cursor-pointer hover:bg-muted">
-                          📎 {attachment}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 
                 <div className="flex justify-end mt-4">
                   <Button variant="outline" size="sm">
