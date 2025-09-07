@@ -1,84 +1,19 @@
-import { Wrench, Clock, CheckCircle, AlertTriangle, Plus, Filter } from 'lucide-react';
+import { Wrench, Clock, CheckCircle, AlertTriangle, Plus, Filter, User, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
-
-const mockMaintenanceRequests = [
-  {
-    id: '1',
-    title: 'Elevator Not Working',
-    description: 'Main elevator in Block A has stopped working',
-    category: 'Elevator',
-    priority: 'high',
-    status: 'in_progress',
-    reportedBy: 'John Doe',
-    unit: 'A-101',
-    reportedDate: '2024-01-15',
-    assignedTo: 'Mike Johnson',
-    estimatedCost: 15000
-  },
-  {
-    id: '2',
-    title: 'Water Leakage in Parking',
-    description: 'Water pipe burst in underground parking area',
-    category: 'Plumbing',
-    priority: 'urgent',
-    status: 'pending',
-    reportedBy: 'Sarah Wilson',
-    unit: 'B-205',
-    reportedDate: '2024-01-14',
-    assignedTo: null,
-    estimatedCost: 8000
-  },
-  {
-    id: '3',
-    title: 'Garden Maintenance',
-    description: 'Monthly garden cleaning and plant care required',
-    category: 'Landscaping',
-    priority: 'low',
-    status: 'completed',
-    reportedBy: 'Emily Davis',
-    unit: 'C-302',
-    reportedDate: '2024-01-10',
-    assignedTo: 'Green Team',
-    estimatedCost: 5000
-  },
-  {
-    id: '4',
-    title: 'Security Camera Repair',
-    description: 'CCTV camera at main gate needs replacement',
-    category: 'Security',
-    priority: 'medium',
-    status: 'in_progress',
-    reportedBy: 'Robert Brown',
-    unit: 'A-505',
-    reportedDate: '2024-01-12',
-    assignedTo: 'Security Team',
-    estimatedCost: 12000
-  },
-  {
-    id: '5',
-    title: 'Gym Equipment Service',
-    description: 'Annual maintenance of gym equipment',
-    category: 'Amenities',
-    priority: 'medium',
-    status: 'scheduled',
-    reportedBy: 'Admin',
-    unit: 'N/A',
-    reportedDate: '2024-01-13',
-    assignedTo: 'Fitness Solutions',
-    estimatedCost: 20000
-  }
-];
+import { useMaintenance } from '@/hooks/useMaintenance';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
   in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
   completed: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
-  scheduled: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
+  open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
+  resolved: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
+  closed: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400',
 };
 
 const priorityColors = {
@@ -91,25 +26,48 @@ const priorityColors = {
 const getStatusIcon = (status: string) => {
   switch (status) {
     case 'pending':
+    case 'open':
       return <Clock className="h-4 w-4" />;
     case 'in_progress':
       return <Wrench className="h-4 w-4" />;
     case 'completed':
+    case 'resolved':
+    case 'closed':
       return <CheckCircle className="h-4 w-4" />;
-    case 'scheduled':
-      return <AlertTriangle className="h-4 w-4" />;
     default:
       return <Clock className="h-4 w-4" />;
   }
 };
 
 const Maintenance = () => {
-  const stats = {
-    total: mockMaintenanceRequests.length,
-    pending: mockMaintenanceRequests.filter(r => r.status === 'pending').length,
-    inProgress: mockMaintenanceRequests.filter(r => r.status === 'in_progress').length,
-    completed: mockMaintenanceRequests.filter(r => r.status === 'completed').length,
-  };
+  const { requests, stats, loading, error } = useMaintenance();
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-48"></div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-32 bg-muted rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="text-center text-red-600">Error loading maintenance data: {error}</div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -203,7 +161,14 @@ const Maintenance = () => {
 
         {/* Maintenance Requests List */}
         <div className="space-y-4">
-          {mockMaintenanceRequests.map((request) => (
+          {requests.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-muted-foreground">No maintenance requests found.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            requests.map((request) => (
             <Card key={request.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -235,32 +200,32 @@ const Maintenance = () => {
                         <div className="flex items-center gap-2 mt-1">
                           <Avatar className="h-6 w-6">
                             <AvatarFallback className="text-xs">
-                              {request.reportedBy.split(' ').map(n => n[0]).join('')}
+                              {request.profiles?.full_name?.split(' ').map(n => n[0]).join('') || 'U'}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-medium">{request.reportedBy}</span>
+                          <span className="font-medium">{request.profiles?.full_name || 'Unknown'}</span>
                         </div>
-                        <span className="text-muted-foreground text-xs">{request.unit}</span>
+                        <span className="text-muted-foreground text-xs">{request.profiles?.unit_number || 'N/A'}</span>
                       </div>
                       
                       <div>
                         <span className="text-muted-foreground">Assigned to:</span>
                         <p className="font-medium mt-1">
-                          {request.assignedTo || 'Unassigned'}
+                          {request.assigned_to || 'Unassigned'}
                         </p>
                       </div>
                       
                       <div>
                         <span className="text-muted-foreground">Reported Date:</span>
                         <p className="font-medium mt-1">
-                          {new Date(request.reportedDate).toLocaleDateString()}
+                          {new Date(request.created_at).toLocaleDateString()}
                         </p>
                       </div>
                       
                       <div>
-                        <span className="text-muted-foreground">Estimated Cost:</span>
-                        <p className="font-medium mt-1">
-                          ₹{request.estimatedCost.toLocaleString('en-IN')}
+                        <span className="text-muted-foreground">Status:</span>
+                        <p className="font-medium mt-1 capitalize">
+                          {request.status.replace('_', ' ')}
                         </p>
                       </div>
                     </div>
@@ -277,7 +242,8 @@ const Maintenance = () => {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          ))
+          )}
         </div>
       </div>
     </AppLayout>

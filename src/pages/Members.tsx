@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useMembers } from '@/hooks/useMembers';
+import AddMemberDialog from '@/components/members/AddMemberDialog';
 import { useState } from 'react';
 
 
@@ -37,10 +38,7 @@ const Members = () => {
               Manage society members and their information
             </p>
           </div>
-          <Button className="bg-gradient-to-r from-primary to-primary/80">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Member
-          </Button>
+          <AddMemberDialog onMemberAdded={() => window.location.reload()} />
         </div>
 
         {/* Search and Filter */}

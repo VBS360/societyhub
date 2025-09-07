@@ -5,93 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
-
-const mockVisitors = [
-  {
-    id: '1',
-    visitorName: 'Rajesh Kumar',
-    visitorPhone: '+91 9876543210',
-    purpose: 'Delivery - Amazon Package',
-    hostName: 'John Doe',
-    hostUnit: 'A-101',
-    visitDate: '2024-01-15',
-    entryTime: '2024-01-15T10:30:00Z',
-    exitTime: '2024-01-15T10:45:00Z',
-    status: 'completed',
-    securityNotes: 'Package delivered successfully'
-  },
-  {
-    id: '2',
-    visitorName: 'Dr. Priya Sharma',
-    visitorPhone: '+91 9876543211',
-    purpose: 'Medical Visit - Home Consultation',
-    hostName: 'Sarah Johnson',
-    hostUnit: 'B-205',
-    visitDate: '2024-01-15',
-    entryTime: '2024-01-15T15:00:00Z',
-    exitTime: null,
-    status: 'in_progress',
-    securityNotes: 'Doctor visit verified with host'
-  },
-  {
-    id: '3',
-    visitorName: 'Amit Verma',
-    visitorPhone: '+91 9876543212',
-    purpose: 'Social Visit - Friend',
-    hostName: 'Mike Wilson',
-    hostUnit: 'C-302',
-    visitDate: '2024-01-15',
-    entryTime: null,
-    exitTime: null,
-    status: 'pending',
-    securityNotes: 'Waiting for host approval'
-  },
-  {
-    id: '4',
-    visitorName: 'Cleaning Service Team',
-    visitorPhone: '+91 9876543213',
-    purpose: 'House Cleaning Service',
-    hostName: 'Emily Davis',
-    hostUnit: 'A-505',
-    visitDate: '2024-01-15',
-    entryTime: '2024-01-15T09:00:00Z',
-    exitTime: '2024-01-15T12:00:00Z',
-    status: 'completed',
-    securityNotes: 'Regular cleaning service'
-  },
-  {
-    id: '5',
-    visitorName: 'Ravi Technician',
-    visitorPhone: '+91 9876543214',
-    purpose: 'AC Repair Service',
-    hostName: 'Robert Brown',
-    hostUnit: 'B-108',
-    visitDate: '2024-01-15',
-    entryTime: '2024-01-15T14:00:00Z',
-    exitTime: null,
-    status: 'in_progress',
-    securityNotes: 'AC repair in progress'
-  },
-  {
-    id: '6',
-    visitorName: 'Maya Gupta',
-    visitorPhone: '+91 9876543215',
-    purpose: 'Social Visit - Relative',
-    hostName: 'John Doe',
-    hostUnit: 'A-101',
-    visitDate: '2024-01-14',
-    entryTime: '2024-01-14T18:00:00Z',
-    exitTime: '2024-01-14T22:30:00Z',
-    status: 'completed',
-    securityNotes: 'Family visit'
-  }
-];
+import { useVisitors } from '@/hooks/useVisitors';
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
   in_progress: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
   completed: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
   rejected: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
+  approved: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
 };
 
 const getStatusIcon = (status: string) => {
@@ -99,6 +20,7 @@ const getStatusIcon = (status: string) => {
     case 'pending':
       return <Clock className="h-4 w-4" />;
     case 'in_progress':
+    case 'approved':
       return <Shield className="h-4 w-4" />;
     case 'completed':
       return <CheckCircle className="h-4 w-4" />;
@@ -132,12 +54,34 @@ const calculateDuration = (entryTime: string | null, exitTime: string | null) =>
 };
 
 const Visitors = () => {
-  const stats = {
-    total: mockVisitors.length,
-    pending: mockVisitors.filter(v => v.status === 'pending').length,
-    inProgress: mockVisitors.filter(v => v.status === 'in_progress').length,
-    completed: mockVisitors.filter(v => v.status === 'completed').length,
-  };
+  const { visitors, stats, loading, error } = useVisitors();
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-48"></div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-32 bg-muted rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="text-center text-red-600">Error loading visitors data: {error}</div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -231,7 +175,14 @@ const Visitors = () => {
 
         {/* Visitors List */}
         <div className="space-y-4">
-          {mockVisitors.map((visitor) => (
+          {visitors.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-muted-foreground">No visitors found.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            visitors.map((visitor) => (
             <Card key={visitor.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-6">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -240,14 +191,14 @@ const Visitors = () => {
                       <div className="flex items-center gap-3">
                         <Avatar className="h-12 w-12">
                           <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
-                            {visitor.visitorName.split(' ').map(n => n[0]).join('')}
+                            {visitor.visitor_name.split(' ').map(n => n[0]).join('')}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <h3 className="font-semibold text-lg">{visitor.visitorName}</h3>
+                          <h3 className="font-semibold text-lg">{visitor.visitor_name}</h3>
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Phone className="h-3 w-3" />
-                            <span>{visitor.visitorPhone}</span>
+                            <span>{visitor.visitor_phone}</span>
                           </div>
                         </div>
                       </div>
@@ -268,33 +219,33 @@ const Visitors = () => {
                       <div>
                         <span className="text-muted-foreground">Host:</span>
                         <p className="font-medium mt-1">
-                          {visitor.hostName}
+                          {visitor.profiles?.full_name || 'Unknown Host'}
                         </p>
-                        <p className="text-xs text-muted-foreground">{visitor.hostUnit}</p>
+                        <p className="text-xs text-muted-foreground">{visitor.profiles?.unit_number || 'N/A'}</p>
                       </div>
                       
                       <div>
                         <span className="text-muted-foreground">Entry/Exit Time:</span>
                         <p className="font-medium mt-1">
-                          {formatTime(visitor.entryTime)} - {formatTime(visitor.exitTime)}
+                          {formatTime(visitor.entry_time)} - {formatTime(visitor.exit_time)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Duration: {calculateDuration(visitor.entryTime, visitor.exitTime)}
+                          Duration: {calculateDuration(visitor.entry_time, visitor.exit_time)}
                         </p>
                       </div>
                       
                       <div>
                         <span className="text-muted-foreground">Visit Date:</span>
                         <p className="font-medium mt-1">
-                          {new Date(visitor.visitDate).toLocaleDateString('en-IN')}
+                          {new Date(visitor.visit_date).toLocaleDateString('en-IN')}
                         </p>
                       </div>
                     </div>
                     
-                    {visitor.securityNotes && (
+                    {visitor.security_notes && (
                       <div className="mt-3 p-2 bg-muted/50 rounded-lg">
                         <span className="text-sm font-medium">Security Notes: </span>
-                        <span className="text-sm text-muted-foreground">{visitor.securityNotes}</span>
+                        <span className="text-sm text-muted-foreground">{visitor.security_notes}</span>
                       </div>
                     )}
                   </div>
@@ -322,7 +273,8 @@ const Visitors = () => {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          ))
+          )}
         </div>
       </div>
     </AppLayout>

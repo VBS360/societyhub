@@ -7,93 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useMemo, useState } from 'react';
 import { MonthCalendar } from '@/components/events/MonthCalendar';
-
-const mockEvents = [
-  {
-    id: '1',
-    title: 'New Year Celebration',
-    description: 'Join us for a grand New Year celebration with live music, dance performances, and delicious food. Bring your family and friends for an unforgettable evening!',
-    eventDate: '2024-12-31T20:00:00Z',
-    location: 'Society Community Hall',
-    organizer: 'Cultural Committee',
-    maxAttendees: 100,
-    currentAttendees: 45,
-    requiresRSVP: true,
-    category: 'Festival',
-    status: 'upcoming',
-    images: []
-  },
-  {
-    id: '2',
-    title: 'Health & Wellness Workshop',
-    description: 'A comprehensive workshop on health and wellness featuring yoga sessions, nutrition guidance, and stress management techniques.',
-    eventDate: '2024-01-20T09:00:00Z',
-    location: 'Society Gym',
-    organizer: 'Health Committee',
-    maxAttendees: 30,
-    currentAttendees: 18,
-    requiresRSVP: true,
-    category: 'Health',
-    status: 'upcoming',
-    images: []
-  },
-  {
-    id: '3',
-    title: 'Children\'s Sports Day',
-    description: 'Fun-filled sports activities for children including relay races, football, badminton, and prize distribution ceremony.',
-    eventDate: '2024-01-25T16:00:00Z',
-    location: 'Society Playground',
-    organizer: 'Sports Committee',
-    maxAttendees: 60,
-    currentAttendees: 32,
-    requiresRSVP: true,
-    category: 'Sports',
-    status: 'upcoming',
-    images: []
-  },
-  {
-    id: '4',
-    title: 'Republic Day Celebration',
-    description: 'Celebrate Republic Day with flag hoisting ceremony, cultural programs, and patriotic songs.',
-    eventDate: '2024-01-26T08:00:00Z',
-    location: 'Society Main Gate',
-    organizer: 'Management Committee',
-    maxAttendees: null,
-    currentAttendees: 78,
-    requiresRSVP: false,
-    category: 'National',
-    status: 'upcoming',
-    images: []
-  },
-  {
-    id: '5',
-    title: 'Annual Blood Donation Camp',
-    description: 'Annual blood donation camp in association with local hospital. Help save lives by donating blood.',
-    eventDate: '2024-01-15T10:00:00Z',
-    location: 'Society Community Hall',
-    organizer: 'Social Service Committee',
-    maxAttendees: 50,
-    currentAttendees: 23,
-    requiresRSVP: true,
-    category: 'Social Service',
-    status: 'completed',
-    images: []
-  },
-  {
-    id: '6',
-    title: 'Gardening Workshop',
-    description: 'Learn organic gardening techniques, plant care, and sustainable farming methods from expert gardeners.',
-    eventDate: '2024-02-05T10:00:00Z',
-    location: 'Society Garden',
-    organizer: 'Environment Committee',
-    maxAttendees: 25,
-    currentAttendees: 12,
-    requiresRSVP: true,
-    category: 'Environment',
-    status: 'upcoming',
-    images: []
-  }
-];
+import { useEvents } from '@/hooks/useEvents';
 
 const categoryColors = {
   'Festival': 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400',
@@ -122,29 +36,51 @@ const formatDate = (dateString: string) => {
 
 const Events = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const stats = {
-    total: mockEvents.length,
-    upcoming: mockEvents.filter(e => e.status === 'upcoming').length,
-    completed: mockEvents.filter(e => e.status === 'completed').length,
-    totalAttendees: mockEvents.reduce((sum, e) => sum + e.currentAttendees, 0),
-  };
+  const { events, stats, loading, error } = useEvents();
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-48"></div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-32 bg-muted rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="p-6">
+          <div className="text-center text-red-600">Error loading events: {error}</div>
+        </div>
+      </AppLayout>
+    );
+  }
 
   const eventsForCalendar = useMemo(
-    () => mockEvents.map(({ id, title, eventDate }) => ({ id, title, eventDate })),
-    []
+    () => events.map(({ id, title, event_date }) => ({ id, title, eventDate: event_date })),
+    [events]
   );
 
   const filteredEvents = useMemo(() => {
-    if (!selectedDate) return mockEvents;
-    return mockEvents.filter((e) => {
-      const d = new Date(e.eventDate);
+    if (!selectedDate) return events;
+    return events.filter((e) => {
+      const d = new Date(e.event_date);
       return (
         d.getFullYear() === selectedDate.getFullYear() &&
         d.getMonth() === selectedDate.getMonth() &&
         d.getDate() === selectedDate.getDate()
       );
     });
-  }, [selectedDate]);
+  }, [selectedDate, events]);
 
   return (
     <AppLayout>
@@ -252,20 +188,33 @@ const Events = () => {
 
         {/* Events Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredEvents.map((event) => (
+          {filteredEvents.length === 0 ? (
+            <div className="col-span-full">
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <p className="text-muted-foreground">No events found.</p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            filteredEvents.map((event) => (
             <Card key={event.id} className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <CardTitle className="text-xl mb-2">{event.title}</CardTitle>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge className={`text-xs ${categoryColors[event.category]}`}>
-                        {event.category}
+                      <Badge className="text-xs bg-primary/10 text-primary">
+                        General
                       </Badge>
-                      <Badge className={`text-xs ${statusColors[event.status]}`}>
-                        {event.status.toUpperCase()}
+                      <Badge className={`text-xs ${
+                        new Date(event.event_date) > new Date() 
+                          ? statusColors.upcoming 
+                          : statusColors.completed
+                      }`}>
+                        {new Date(event.event_date) > new Date() ? 'UPCOMING' : 'COMPLETED'}
                       </Badge>
-                      {event.requiresRSVP && (
+                      {event.requires_rsvp && (
                         <Badge variant="outline" className="text-xs">
                           RSVP Required
                         </Badge>
@@ -274,7 +223,7 @@ const Events = () => {
                   </div>
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
-                      {event.organizer.split(' ').map(n => n[0]).join('')}
+                      {event.profiles?.full_name?.split(' ').map(n => n[0]).join('') || 'E'}
                     </AvatarFallback>
                   </Avatar>
                 </div>
@@ -282,13 +231,13 @@ const Events = () => {
               
               <CardContent className="pt-0 space-y-4">
                 <p className="text-muted-foreground text-sm leading-relaxed">
-                  {event.description}
+                  {event.description || 'No description available.'}
                 </p>
                 
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Calendar className="h-4 w-4" />
-                    <span>{formatDate(event.eventDate)}</span>
+                    <span>{formatDate(event.event_date)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <MapPin className="h-4 w-4" />
@@ -297,22 +246,21 @@ const Events = () => {
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Users className="h-4 w-4" />
                     <span>
-                      {event.currentAttendees} attendees
-                      {event.maxAttendees && ` (${event.maxAttendees} max)`}
+                      {event.max_attendees ? `Max ${event.max_attendees} attendees` : 'Open to all'}
                     </span>
                   </div>
                 </div>
 
-                {event.maxAttendees && (
+                {event.max_attendees && (
                   <div className="space-y-1">
                     <div className="flex justify-between text-sm">
-                      <span>Attendance</span>
-                      <span>{event.currentAttendees}/{event.maxAttendees}</span>
+                      <span>Capacity</span>
+                      <span>0/{event.max_attendees}</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
                       <div 
                         className="h-2 bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300"
-                        style={{ width: `${(event.currentAttendees / event.maxAttendees) * 100}%` }}
+                        style={{ width: '0%' }}
                       ></div>
                     </div>
                   </div>
@@ -320,13 +268,13 @@ const Events = () => {
 
                 <div className="flex items-center justify-between pt-2">
                   <span className="text-sm text-muted-foreground">
-                    By {event.organizer}
+                    By {event.profiles?.full_name || 'Event Organizer'}
                   </span>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm">
                       View Details
                     </Button>
-                    {event.status === 'upcoming' && event.requiresRSVP && (
+                    {new Date(event.event_date) > new Date() && event.requires_rsvp && (
                       <Button size="sm" className="bg-gradient-to-r from-primary to-primary/80">
                         RSVP
                       </Button>
@@ -335,7 +283,8 @@ const Events = () => {
                 </div>
               </CardContent>
             </Card>
-          ))}
+          ))
+          )}
         </div>
       </div>
     </AppLayout>

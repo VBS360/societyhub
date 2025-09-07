@@ -10,10 +10,12 @@ import { Separator } from '@/components/ui/separator';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import RoleManagement from '@/components/settings/RoleManagement';
+import SocietyManagement from '@/components/settings/SocietyManagement';
 
 const Settings = () => {
   const { profile } = useAuth();
   const canManageRoles = profile?.role && ['super_admin', 'society_admin'].includes(profile.role);
+  const canManageSociety = profile?.role && ['super_admin', 'society_admin'].includes(profile.role);
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
@@ -246,51 +248,12 @@ const Settings = () => {
           </Card>
         </div>
 
+        {/* Society Management */}
+        <SocietyManagement canManageSociety={canManageSociety} />
+
         {/* Role Management */}
         <RoleManagement canManageRoles={canManageRoles} />
 
-        {/* Society Settings (Admin Only) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Society Settings
-              <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Admin Only</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="societyName">Society Name</Label>
-                <Input id="societyName" defaultValue="Green Valley Apartments" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="registrationNumber">Registration Number</Label>
-                <Input id="registrationNumber" defaultValue="REG/2023/001234" />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="societyAddress">Society Address</Label>
-              <Textarea 
-                id="societyAddress" 
-                defaultValue="123 Green Valley Road, Sector 15, Pune, Maharashtra 411001"
-                className="min-h-[80px]"
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="societyEmail">Society Email</Label>
-                <Input id="societyEmail" type="email" defaultValue="info@greenvalley.com" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="societyPhone">Society Phone</Label>
-                <Input id="societyPhone" defaultValue="+91 20 1234 5678" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Help & Support */}
         <Card>
