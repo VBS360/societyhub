@@ -638,6 +638,10 @@ export type Database = {
         Args: { target_society: string }
         Returns: boolean
       }
+      is_super_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       complaint_status: "open" | "in_progress" | "resolved" | "closed"
