@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/router';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 type Role = {
@@ -24,8 +24,7 @@ type RoleManagementProps = {
 };
 
 export const RoleManagement = ({ societyId, onRoleSelect }: RoleManagementProps) => {
-  const router = useRouter();
-  const { reload } = router;
+  const navigate = useNavigate();
   const [roles, setRoles] = useState<Role[]>([]);
   const [newRoleName, setNewRoleName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -96,13 +95,18 @@ export const RoleManagement = ({ societyId, onRoleSelect }: RoleManagementProps)
     }
   };
 
+  const handleEditRole = (roleId: string) => {
+    navigate(`/security/roles/${roleId}/edit`);
+  };
+
   const deleteRole = async (roleId: string) => {
     if (!confirm('Are you sure you want to delete this role? This action cannot be undone.')) return;
     
     try {
+      // Use the correct delete method signature for Supabase
       const { error } = await supabase
         .from('society_roles')
-        .delete()
+        .delete({ returnType: 'minimal' } as any)
         .eq('id', roleId);
 
       if (error) throw error;

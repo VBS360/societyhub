@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface Profile {
+  permissions: any;
   id: string;
   user_id: string;
   society_id: string | null;

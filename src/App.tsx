@@ -16,6 +16,7 @@ import Events from "./pages/Events";
 import Visitors from "./pages/Visitors";
 import Amenities from "./pages/Amenities";
 import Settings from "./pages/Settings";
+import Security from "./pages/security";
 import NotFound from "./pages/NotFound";
 import Landing from "./pages/Landing";
 import Documents from "./pages/Documents";
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/documents" element={<Documents />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/security" element={<Security />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

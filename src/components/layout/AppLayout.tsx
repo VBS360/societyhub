@@ -39,11 +39,12 @@ interface AppLayoutProps {
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'Members', href: '/members', icon: Users },
+  { name: 'Security', href: '/security', icon: Shield },
   { name: 'Finances', href: '/finances', icon: CreditCard },
   { name: 'Maintenance', href: '/maintenance', icon: Wrench },
   { name: 'Announcements', href: '/announcements', icon: MessageSquare },
   { name: 'Events', href: '/events', icon: Calendar },
-  { name: 'Visitors', href: '/visitors', icon: Shield },
+  { name: 'Visitors', href: '/visitors', icon: Users },
   { name: 'Amenities', href: '/amenities', icon: Car },
   { name: 'Documents', href: '/documents', icon: FileText },
   { name: 'Chat', href: '/chat', icon: MessageSquare },
