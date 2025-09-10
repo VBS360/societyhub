@@ -483,6 +483,7 @@ export type Database = {
           is_owner: boolean | null
           phone: string | null
           role: Database["public"]["Enums"]["user_role"] | null
+          role_id: string | null
           society_id: string | null
           unit_number: string | null
           updated_at: string
@@ -500,6 +501,7 @@ export type Database = {
           is_owner?: boolean | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"] | null
+          role_id?: string | null
           society_id?: string | null
           unit_number?: string | null
           updated_at?: string
@@ -517,6 +519,7 @@ export type Database = {
           is_owner?: boolean | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"] | null
+          role_id?: string | null
           society_id?: string | null
           unit_number?: string | null
           updated_at?: string
@@ -524,6 +527,13 @@ export type Database = {
           vehicle_details?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "society_roles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_society_id_fkey"
             columns: ["society_id"]
@@ -565,6 +575,47 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      society_roles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          permissions: string[] | null
+          society_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          name: string
+          permissions?: string[] | null
+          society_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          permissions?: string[] | null
+          society_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "society_roles_society_id_fkey"
+            columns: ["society_id"]
+            isOneToOne: false
+            referencedRelation: "societies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       visitors: {
         Row: {

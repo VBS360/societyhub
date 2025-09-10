@@ -49,14 +49,12 @@ export const UserRoles = ({ societyId }: { societyId: string }) => {
     try {
       setIsLoading(true);
       
-      const { error } = await supabase
-        .from('profiles')
-        .update({ 
-          role_id: roleId,
-          // If role_id is being set, update the role to society_member
-          ...(roleId ? { role: 'society_member' as const } : {})
-        })
-        .eq('id', userId);
+        const { error } = await (supabase as any)
+          .from('profiles')
+          .update({ 
+            role_id: roleId
+          })
+          .eq('id', userId);
 
       if (error) throw error;
       

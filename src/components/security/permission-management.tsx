@@ -1,117 +1,48 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-const SYSTEM_PERMISSIONS = [
-  { id: 'manage_societies', label: 'Manage Societies' },
-  { id: 'manage_system_settings', label: 'Manage System Settings' },
-  { id: 'manage_members', label: 'Manage Members' },
-  { id: 'manage_roles', label: 'Manage Roles' },
-  { id: 'manage_announcements', label: 'Manage Announcements' },
-  { id: 'manage_events', label: 'Manage Events' },
-  { id: 'manage_finances', label: 'Manage Finances' },
-  { id: 'view_reports', label: 'View Reports' },
-  { id: 'manage_visitors', label: 'Manage Visitors' },
-  { id: 'view_announcements', label: 'View Announcements' },
-  { id: 'book_amenities', label: 'Book Amenities' },
-  { id: 'view_public_info', label: 'View Public Information' },
-];
+interface PermissionManagementProps {
+  societyId: string | null;
+  roleId: string;
+}
 
-export const PermissionManagement = ({ roleId, societyId }: { roleId: string; societyId: string }) => {
-  const [permissions, setPermissions] = useState<Record<string, boolean>>({});
-  const [isLoading, setIsLoading] = useState(false);
+export function PermissionManagement({ societyId, roleId }: PermissionManagementProps) {
+  const [permissions, setPermissions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (roleId && societyId) {
+      fetchRolePermissions();
+    }
+  }, [roleId, societyId]);
 
   const fetchRolePermissions = async () => {
-    if (!roleId) return;
-    
     try {
+      setLoading(true);
       const { data, error } = await supabase
-        .from('society_role_permissions')
-        .select('permission')
-        .eq('role_id', roleId);
+        .from('society_roles')
+        .select('permissions')
+        .eq('id', roleId)
+        .single();
 
       if (error) throw error;
 
-      const rolePermissions = data.map(p => p.permission);
-      const permissionsMap = {} as Record<string, boolean>;
-      
-      SYSTEM_PERMISSIONS.forEach(perm => {
-        permissionsMap[perm.id] = rolePermissions.includes(perm.id);
-      });
-      
-      setPermissions(permissionsMap);
+      setPermissions(data?.permissions || []);
     } catch (error) {
       console.error('Error fetching role permissions:', error);
-      toast.error('Failed to load permissions');
-    }
-  };
-
-  const handlePermissionChange = async (permissionId: string, isChecked: boolean) => {
-    try {
-      setIsLoading(true);
-      
-      if (isChecked) {
-        // Add permission
-        const { error } = await supabase
-          .from('society_role_permissions')
-          .insert([{ role_id: roleId, permission: permissionId }]);
-          
-        if (error) throw error;
-      } else {
-        // Remove permission
-        const { error } = await supabase
-          .from('society_role_permissions')
-          .delete()
-          .eq('role_id', roleId)
-          .eq('permission', permissionId);
-          
-        if (error) throw error;
-      }
-      
-      // Update local state
-      setPermissions(prev => ({
-        ...prev,
-        [permissionId]: isChecked
-      }));
-      
-      toast.success('Permissions updated successfully');
-    } catch (error) {
-      console.error('Error updating permission:', error);
-      toast.error('Failed to update permission');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (roleId) {
-      fetchRolePermissions();
-    } else {
-      // Initialize with all false if no role selected
-      const initialPermissions = {} as Record<string, boolean>;
-      SYSTEM_PERMISSIONS.forEach(perm => {
-        initialPermissions[perm.id] = false;
+      toast({
+        title: 'Error',
+        description: 'Failed to load permissions',
+        variant: 'destructive'
       });
-      setPermissions(initialPermissions);
+    } finally {
+      setLoading(false);
     }
-  }, [roleId]);
-
-  if (!societyId) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Role Permissions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">Select a society to manage permissions.</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  };
 
   if (!roleId) {
     return (
@@ -120,7 +51,7 @@ export const PermissionManagement = ({ roleId, societyId }: { roleId: string; so
           <CardTitle>Role Permissions</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Select a role to manage its permissions.</p>
+          <p className="text-muted-foreground">Select a role to view its permissions</p>
         </CardContent>
       </Card>
     );
@@ -132,24 +63,24 @@ export const PermissionManagement = ({ roleId, societyId }: { roleId: string; so
         <CardTitle>Role Permissions</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {SYSTEM_PERMISSIONS.map((permission) => (
-            <div key={permission.id} className="flex items-center space-x-2">
-              <Checkbox
-                id={permission.id}
-                checked={permissions[permission.id] || false}
-                onCheckedChange={(checked) => 
-                  handlePermissionChange(permission.id, checked as boolean)
-                }
-                disabled={isLoading}
-              />
-              <Label htmlFor={permission.id} className="text-sm font-medium leading-none">
-                {permission.label}
-              </Label>
+        {loading ? (
+          <p>Loading permissions...</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {permissions.length > 0 ? (
+                permissions.map((permission) => (
+                  <Badge key={permission} variant="secondary">
+                    {permission.replace(/_/g, ' ')}
+                  </Badge>
+                ))
+              ) : (
+                <p className="text-muted-foreground">No permissions assigned to this role</p>
+              )}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
-};
+}

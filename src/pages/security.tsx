@@ -11,7 +11,7 @@ export default function SecurityPage() {
   const { toast } = useToast();
   const [selectedRoleId, setSelectedRoleId] = useState<string>('');
 
-  if (!profile?.permissions?.includes('manage_security')) {
+  if (!profile || !['super_admin', 'society_admin', 'committee_member'].includes(profile.role)) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">You don't have permission to access this section.</p>

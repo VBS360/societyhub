@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface Profile {
-  permissions: any;
   id: string;
   user_id: string;
   society_id: string | null;
@@ -12,6 +11,7 @@ interface Profile {
   full_name: string;
   phone: string | null;
   unit_number: string | null;
+  role_id?: string | null;
   is_owner: boolean;
   emergency_contact: string | null;
   vehicle_details: string | null;
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
 
-      return data;
+      return data as Profile;
     } catch (error) {
       console.error('Error fetching profile:', error);
       return null;
@@ -231,7 +231,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error };
       }
 
-      setProfile(data);
+      setProfile(data as Profile);
       toast({
         title: "Profile updated",
         description: "Your profile has been successfully updated.",

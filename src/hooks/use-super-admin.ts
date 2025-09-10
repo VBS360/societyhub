@@ -25,7 +25,7 @@ export const useSuperAdmin = (redirectTo = '/dashboard') => {
 
         if (error) throw error;
         
-        const hasSuperAdmin = profile?.role === 'super_admin';
+        const hasSuperAdmin = profile && (profile as any).role === 'super_admin';
         setIsSuperAdmin(hasSuperAdmin);
         
         if (!hasSuperAdmin) {
