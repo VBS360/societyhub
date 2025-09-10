@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { AppLayout } from '@/components/layout/AppLayout';
+// AppLayout is now provided by the ProtectedRoute wrapper
 import { useAnnouncements } from '@/hooks/useAnnouncements';
 
 const mockAnnouncements = [
@@ -83,16 +83,16 @@ const isExpiringSoon = (expiresAt: string | null) => {
 };
 
 const Announcements = () => {
-  const { announcements, stats, loading, error } = useAnnouncements();
-
-  if (loading) return <AppLayout><div className="p-6">Loading...</div></AppLayout>;
-  if (error) return <AppLayout><div className="p-6 text-red-600">Error: {error}</div></AppLayout>;
+  const { announcements, loading, error } = useAnnouncements();
+  
+  if (loading) {
+    return null; // AppLayout will handle the loading state
+  }
 
   return (
-    <AppLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Announcements</h1>
             <p className="text-muted-foreground">
@@ -112,7 +112,7 @@ const Announcements = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-                    {stats.total}
+                    {announcements.length}
                   </div>
                   <p className="text-sm text-blue-600 dark:text-blue-400">Total Announcements</p>
                 </div>
@@ -126,7 +126,7 @@ const Announcements = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-bold text-red-700 dark:text-red-300">
-                    {stats.urgent}
+                    {announcements.filter(a => a.is_urgent).length}
                   </div>
                   <p className="text-sm text-red-600 dark:text-red-400">Urgent</p>
                 </div>
@@ -140,7 +140,7 @@ const Announcements = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                    {announcements.filter(a => a.is_urgent).length}
+                    {announcements.filter(a => a.is_pinned).length}
                   </div>
                   <p className="text-sm text-purple-600 dark:text-purple-400">Active</p>
                 </div>
@@ -154,7 +154,7 @@ const Announcements = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                    {stats.expiringSoon}
+                    {announcements.filter(a => isExpiringSoon(a.expires_at)).length}
                   </div>
                   <p className="text-sm text-orange-600 dark:text-orange-400">Expiring Soon</p>
                 </div>
@@ -215,7 +215,6 @@ const Announcements = () => {
           ))}
         </div>
       </div>
-    </AppLayout>
   );
 };
 

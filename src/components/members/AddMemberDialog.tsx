@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Define the role type for the form
 interface FormRole extends Omit<SocietyRole, 'permissions'> {
+  role_key: string;
   permissions: string[];
 }
 
@@ -51,8 +52,9 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ onMemberAdded }) => {
   const [loadingRoles, setLoadingRoles] = useState(true);
   
   // Define form data type that extends the Profile type with our custom fields
-  type FormDataType = Omit<Profile, 'id' | 'created_at' | 'updated_at' | 'is_active' | 'role_id'> & {
+  type FormDataType = Omit<Profile, 'id' | 'created_at' | 'updated_at' | 'is_active' | 'role_id' | 'role'> & {
     role_id: string; // Override to make it non-nullable in the form
+    role: 'super_admin' | 'society_admin' | 'committee_member' | 'resident' | 'guest'; // Explicit role type
     role_name?: string; // For display purposes only, not stored in the database
     family_members: string[]; // Override to make it non-nullable in the form
     send_invite: boolean;
@@ -65,8 +67,8 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ onMemberAdded }) => {
     phone: '',
     unit_number: '',
     role_id: '',
-    role: 'resident', // Default role
-    role_name: '', // For display purposes
+    role: 'resident', // Default role as valid role type
+    role_name: 'Resident', // For display purposes
     is_owner: false,
     emergency_contact: '',
     vehicle_details: '',
@@ -162,76 +164,110 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ onMemberAdded }) => {
 
     setLoading(true);
     try {
-      // 1. Create auth user
-      const password = Math.random().toString(36).slice(-10);
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: password,
-        options: {
-          data: {
+      // Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id, email, is_active')
+        .eq('email', formData.email)
+        .single();
+
+      let userId: string;
+      
+      if (existingUser) {
+        // User exists, update their profile
+        userId = existingUser.id;
+        
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
             full_name: formData.full_name,
-            phone: formData.phone,
+            phone: formData.phone || null,
+            unit_number: formData.unit_number || null,
+            role_id: formData.role_id,
+            role: 'resident',
+            is_owner: formData.is_owner,
+            emergency_contact: formData.emergency_contact || null,
+            vehicle_details: formData.vehicle_details || null,
+            family_members: formData.family_members.filter(member => member.trim() !== ''),
+            is_active: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+          
+        if (updateError) throw updateError;
+      } else {
+        // Create new user
+        const password = Math.random().toString(36).slice(-10);
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: formData.email,
+          password: password,
+          options: {
+            data: {
+              full_name: formData.full_name,
+              phone: formData.phone,
+              role: 'resident',
+              role_id: formData.role_id,
+              society_id: profile.society_id
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('Failed to create user');
+        
+        userId = authData.user.id;
+
+        // Create profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            user_id: userId,
+            full_name: formData.full_name,
+            email: formData.email,
+            phone: formData.phone || null,
+            unit_number: formData.unit_number || null,
             role: 'resident',
             role_id: formData.role_id,
-            society_id: profile.society_id
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Failed to create user');
-
-      // 2. Create profile with role information
-      const profileData = {
-        id: authData.user.id,
-        user_id: authData.user.id,
-        full_name: formData.full_name,
-        email: formData.email,
-        phone: formData.phone || null,
-        unit_number: formData.unit_number || null,
-        role: 'resident' as const,
-        role_id: formData.role_id || null,
-        is_owner: formData.is_owner,
-        emergency_contact: formData.emergency_contact || null,
-        vehicle_details: formData.vehicle_details || null,
-        society_id: profile.society_id,
-        family_members: formData.family_members.filter(member => member.trim() !== ''),
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      // 3. Save profile to database
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert(profileData);
-
-      if (profileError) throw profileError;
-
-      // 4. Send welcome email if enabled
-      if (formData.send_invite) {
-        try {
-          const { error: inviteError } = await supabase.functions.invoke('send-invite-email', {
-            body: {
-              email: formData.email,
-              password: password,
-              redirectTo: `${window.location.origin}/auth/reset-password`
-            }
+            is_owner: formData.is_owner,
+            emergency_contact: formData.emergency_contact || null,
+            vehicle_details: formData.vehicle_details || null,
+            society_id: profile.society_id,
+            family_members: formData.family_members.filter(member => member.trim() !== ''),
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           });
 
-          if (inviteError) {
-            console.error('Error sending invite email:', inviteError);
-            // Don't fail the whole operation if email fails
+        if (profileError) throw profileError;
+
+        // Only send invite for new users
+        if (formData.send_invite) {
+          try {
+            const { error: inviteError } = await supabase.functions.invoke('send-invite-email', {
+              body: {
+                email: formData.email,
+                password: password,
+                redirectTo: `${window.location.origin}/auth/reset-password`
+              }
+            });
+
+            if (inviteError) {
+              console.error('Error sending invite email:', inviteError);
+            }
+          } catch (emailError) {
+            console.error('Error in email function:', emailError);
           }
-        } catch (emailError) {
-          console.error('Error in email function:', emailError);
         }
       }
 
+      // Show success message
       toast({
         title: "Success",
-        description: `Member added successfully${formData.send_invite ? ' and invite sent' : ''}`,
+        description: existingUser 
+          ? `Member updated successfully` 
+          : `Member added successfully${formData.send_invite ? ' and invite sent' : ''}`,
       });
 
       // Reset form
@@ -347,17 +383,24 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ onMemberAdded }) => {
                     value={formData.role_id}
                     onValueChange={(value) => {
                       const role = roles.find(r => r.id === value);
-                      setSelectedRole(role || null);
-                      setFormData({
-                        ...formData,
-                        role_id: value,
-                        role_name: role?.name || ''
-                      });
+                      if (role) {
+                        setSelectedRole(role);
+                        const roleKey = (['super_admin', 'society_admin', 'committee_member', 'resident', 'guest'] as const)
+                          .find(key => key === role.role_key) || 'resident';
+                        setFormData(prev => ({
+                          ...prev,
+                          role_id: role.id,
+                          role: roleKey,
+                          role_name: role.name
+                        }));
+                      }
                     }}
                     required
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a role" />
+                      <SelectValue placeholder="Select a role">
+                        {formData.role_name ? formData.role_name : 'Select a role'}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {roles.map((role) => (

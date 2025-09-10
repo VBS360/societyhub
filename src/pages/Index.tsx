@@ -11,15 +11,9 @@ const Index = () => {
   const { profile, user, loading } = useAuth();
   const dashboardStats = useDashboardStats();
 
-  // Show spinner only while loading auth state
+  // Show loading state (handled by AppLayout)
   if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </AppLayout>
-    );
+    return null; // AppLayout will handle the loading state
   }
 
   // Safe fallbacks if profile couldn't be fetched (e.g., due to RLS issues)
@@ -51,8 +45,7 @@ const Index = () => {
   const heroStats = getHeroStats();
 
   return (
-    <AppLayout>
-      <div className="relative p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-hidden">
+    <div className="relative p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-hidden">
         {/* Decorative background */}
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute left-1/2 top-0 h-64 w-[56rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
@@ -98,7 +91,6 @@ const Index = () => {
           </div>
         </div>
       </div>
-    </AppLayout>
   );
 };
 

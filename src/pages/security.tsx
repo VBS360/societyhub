@@ -7,9 +7,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function SecurityPage() {
-  const { profile } = useAuth();
+  const { profile, loading } = useAuth();
   const { toast } = useToast();
   const [selectedRoleId, setSelectedRoleId] = useState<string>('');
+
+  // Show loading state (handled by AppLayout)
+  if (loading) {
+    return null; // AppLayout will handle the loading state
+  }
 
   if (!profile || !['super_admin', 'society_admin', 'committee_member'].includes(profile.role)) {
     return (
@@ -20,10 +25,10 @@ export default function SecurityPage() {
   }
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Security Management</h1>
-        <p className="text-muted-foreground">Manage roles, permissions, and user access</p>
+        <h1 className="text-3xl font-bold tracking-tight">Security Management</h1>
+        <p className="text-muted-foreground mt-2">Manage roles, permissions, and user access</p>
       </div>
 
       <Tabs defaultValue="roles" className="w-full">
