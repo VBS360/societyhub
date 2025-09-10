@@ -12,9 +12,9 @@ import {
   Settings,
   LogOut,
   Menu,
-  Bell,
   FileText
 } from 'lucide-react';
+import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -187,10 +187,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             </div>
             
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-4 w-4" />
-                <span className="absolute -top-1 -right-1 h-2 w-2 bg-destructive rounded-full"></span>
-              </Button>
+              <NotificationDropdown />
               
               {profile && (
                 <div className="flex items-center gap-3">

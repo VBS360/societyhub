@@ -139,9 +139,9 @@ export const UserRoles = ({ societyId }: { societyId: string }) => {
                   </TableCell>
                   <TableCell>
                     <Select
-                      value={user.role_id || ''}
+                      value={user.role_id || 'none'}
                       onValueChange={(value) => 
-                        updateUserRole(user.id, value || null)
+                        updateUserRole(user.id, value === 'none' ? null : value)
                       }
                       disabled={isLoading}
                     >
@@ -149,7 +149,7 @@ export const UserRoles = ({ societyId }: { societyId: string }) => {
                         <SelectValue placeholder="No custom role" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No custom role</SelectItem>
+                        <SelectItem value="none">No custom role</SelectItem>
                         {roles.map((role) => (
                           <SelectItem key={role.id} value={role.id}>
                             {role.name}
