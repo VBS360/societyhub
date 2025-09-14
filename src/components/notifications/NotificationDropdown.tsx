@@ -29,8 +29,13 @@ export function NotificationDropdown() {
 
   const fetchNotifications = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        setNotifications([]);
+        setUnreadCount(0);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('notifications')
@@ -39,17 +44,22 @@ export function NotificationDropdown() {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       setNotifications(data || []);
       setUnreadCount(data?.filter((n: Notification) => !n.read).length || 0);
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load notifications',
-        variant: 'destructive',
-      });
+      // Only show error toast if there are notifications that failed to load
+      if (notifications.length > 0) {
+        toast({
+          title: 'Error',
+          description: 'Failed to refresh notifications',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
@@ -100,46 +110,50 @@ export function NotificationDropdown() {
     }
   };
 
+  // Handle authentication state changes
   useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        await fetchNotifications();
+      } else if (event === 'SIGNED_OUT') {
+        setNotifications([]);
+        setUnreadCount(0);
+      }
+    });
+
+    // Initial fetch
     fetchNotifications();
-    
-    // Get current user ID
-    const getCurrentUserId = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      return user?.id;
-    };
 
     // Set up real-time subscription
+    let channel: any;
     const setupSubscription = async () => {
-      const userId = await getCurrentUserId();
-      if (!userId) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      const channel = supabase
+      channel = supabase
         .channel('notifications')
         .on('postgres_changes', 
           { 
             event: 'INSERT', 
             schema: 'public', 
             table: 'notifications',
-            filter: `user_id=eq.${userId}`
+            filter: `user_id=eq.${user.id}`
           }, 
           () => {
             fetchNotifications();
           }
         )
         .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
     };
 
-    const cleanup = setupSubscription();
+    setupSubscription();
     
     return () => {
-      if (cleanup) cleanup.then(fn => fn());
+      authListener?.subscription.unsubscribe();
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
-
   }, []);
 
   const getNotificationIcon = (type: string) => {
