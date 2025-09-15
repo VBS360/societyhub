@@ -185,21 +185,27 @@ interface AddMemberFormProps {
   societyId: string;
 }
 
-const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) => {
+const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Element => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const {
+  // Add loading state check
+  if (!profile) {
+    return <div className="flex items-center justify-center p-8">Loading...</div>;
+  }
+  
+  const { 
     control,
     register,
     handleSubmit,
     watch,
-    formState: { errors },
+    formState: { errors, isValid: isFormValid },
     setValue,
     trigger,
   } = useForm<FormValues>({
+    mode: 'onChange',
     resolver: zodResolver(formSchema),
     defaultValues: {
       familyMembers: [{
@@ -288,13 +294,14 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
   // Calculate total percentage for nominees
   const totalPercentage = nominees?.reduce((sum, nominee) => sum + (nominee.percentage || 0), 0) || 0;
 
-  const steps = [
-    { id: 'personal', name: 'Personal Info' },
-    { id: 'family', name: 'Family Details' },
-    { id: 'property', name: 'Property Info' },
-    { id: 'documents', name: 'Documents' },
-    { id: 'review', name: 'Review' },
-  ];
+  // Memoize steps to prevent recreation on each render
+  const steps = React.useMemo(() => [
+    { id: 'personal', name: 'Personal Info', fields: ['salutation', 'firstName', 'lastName', 'email', 'mobile', 'dateOfBirth', 'aadhaarNumber', 'isMinor'] as const },
+    { id: 'family', name: 'Family', fields: ['familyMembers'] as const },
+    { id: 'property', name: 'Property', fields: ['flatNumber', 'membershipType', 'dateOfPossession'] as const },
+    { id: 'documents', name: 'Documents', fields: ['documentProofs'] as const },
+    { id: 'review', name: 'Review', fields: [] as const },
+  ], []); // Empty dependency array means this only runs once
 
   // Define the form data type with all required fields
   type MemberFormData = {
@@ -326,8 +333,24 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
     agreeToPrivacy: boolean;
   };
 
-  const onSubmit = async (formData: MemberFormData) => {
+  const onSubmit = async (formData: FormValues): Promise<void> => {
+    if (isSubmitting) return;
+    if (!formData.documentProofs) {
+      toast({
+        title: 'Error',
+        description: 'Please upload all required documents',
+        variant: 'destructive',
+      });
+      return;
+    }
+    console.log('Form submitting with data:', formData);
+    if (isSubmitting) {
+      console.log('Already submitting, ignoring duplicate click');
+      return;
+    }
+    console.log('Form data to submit:', formData);
     setIsSubmitting(true);
+    console.log('isSubmitting set to true');
     try {
       // Prepare the data for submission
       const memberData = {
@@ -495,7 +518,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
           p_member_id: userId
         });
 
-        const uploadPromises = files.map(async (file) => {
+        const uploadPromises = files.map(async (file: File) => {
           const fileExt = file.name.split('.').pop();
           const fileName = `${userId}-${Date.now()}.${fileExt}`;
           const filePath = `documents/${societyId}/${userId}/${fileName}`;
@@ -535,19 +558,12 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
         await Promise.all(uploadPromises);
       }
 
-      // Show success message
-      toast({
-        title: 'Success',
-        description: 'Member added successfully',
-      });
-      
-      // Call the success callback
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error submitting form:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to add member. Please try again.',
+        description: 'Failed to submit form. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -556,40 +572,15 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
   };
 
   const nextStep = async () => {
-    // Validate current step before proceeding
-    let isValid = true;
-    
-    // Define which fields to validate based on current step
-    let fieldsToValidate: (keyof FormValues)[] = [];
-    
-    switch (currentStep) {
-      case 0: // Personal Info
-        fieldsToValidate = [
-          'firstName', 'lastName', 'salutation', 'residentialAddress', 
-          'mobile', 'email', 'dateOfBirth', 'aadhaarNumber'
-        ];
-        if (isMinor) {
-          fieldsToValidate.push('guardianName', 'guardianRelation');
-        }
-        break;
-      case 1: // Family Details
-        // No required fields to validate (all optional)
-        break;
-      case 2: // Property Info
-        fieldsToValidate = ['flatNumber', 'membershipType', 'dateOfPossession'];
-        break;
-      case 3: // Documents
-        // No required fields to validate (all optional)
-        break;
-    }
-    
-    // Trigger validation for current step
-    if (fieldsToValidate.length > 0) {
-      isValid = await trigger(fieldsToValidate as any);
-    }
-    
+    const currentFields = steps[currentStep]?.fields || [];
+    const isValid = await trigger(currentFields as any);
     if (isValid) {
       setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+    } else {
+      const firstError = document.querySelector('.text-red-500');
+      if (firstError) {
+        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
   };
 
@@ -655,7 +646,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
             <Input
               id="firstName"
               {...register('firstName')}
-              placeholder="John"
+              placeholder="Bhaveshbhai"
               className={`${errors.firstName ? 'border-red-500' : ''} focus-visible:ring-blue-500`}
             />
             {errors.firstName && (
@@ -670,7 +661,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
             <Input
               id="middleName"
               {...register('middleName')}
-              placeholder="Middle"
+              placeholder="Arunbhai"
               className="focus-visible:ring-blue-500"
             />
           </div>
@@ -682,7 +673,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
             <Input
               id="lastName"
               {...register('lastName')}
-              placeholder="Doe"
+              placeholder="Patel"
               className={`${errors.lastName ? 'border-red-500' : ''} focus-visible:ring-blue-500`}
             />
             {errors.lastName && (
@@ -719,7 +710,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
               id="email"
               type="email"
               {...register('email')}
-              placeholder="john.doe@example.com"
+              placeholder="bhavesh.patel@gmail.com"
               className={`${errors.email ? 'border-red-500' : ''} focus-visible:ring-blue-500`}
             />
             {errors.email && (
@@ -756,7 +747,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
               id="aadhaarNumber"
               {...register('aadhaarNumber')}
               placeholder="1234 5678 9012"
-              maxLength={14}
+              maxLength={12}
               className={`${errors.aadhaarNumber ? 'border-red-500' : ''} focus-visible:ring-blue-500`}
             />
             {errors.aadhaarNumber && (
@@ -927,16 +918,21 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
                 <Controller
                   name={`familyMembers.${index}.dateOfBirth`}
                   control={control}
-                  render={({ field, fieldState: { error } }) => (
-                    <div className="[&_.react-datepicker-popper]:z-20">
-                      <DateOfBirthInput
-                        value={field.value}
-                        onChange={field.onChange}
-                        error={error?.message}
-                        required={false}
-                      />
-                    </div>
-                  )}
+                  render={({ field, fieldState: { error } }) => {
+                    return (
+                      <div className="[&_.react-datepicker-popper]:z-50">
+                        <DateOfBirthInput
+                          value={field.value}
+                          onChange={(date) => {
+                            field.onChange(date);
+                          }}
+                          onBlur={field.onBlur}
+                          error={error?.message}
+                          required={false}
+                        />
+                      </div>
+                    );
+                  }}
                 />
               </div>
             </div>
@@ -1215,7 +1211,7 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
     </div>
   );
 
-  const renderReviewStep = () => {
+  const renderReviewStep = React.useCallback(() => {
     const formData = watch();
     
     return (
@@ -1386,16 +1382,25 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
               }}
             />
             <Label htmlFor="confirmDetails" className="font-normal">
-              I confirm that all the information provided is accurate to the best of my knowledge.
+              I confirm that all the information provided is accurate
             </Label>
           </div>
           
-          <Button type="submit" disabled={isSubmitting}>
+          <Button 
+            type="submit"
+            disabled={isSubmitting || !isFormValid || !watch('agreeToTerms') || !watch('agreeToPrivacy')}
+            className={`relative ${(!watch('agreeToTerms') || !watch('agreeToPrivacy')) ? 'bg-red-100 hover:bg-red-100' : ''}`}
+          >
+            {(!watch('agreeToTerms') || !watch('agreeToPrivacy')) && (
+              <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                !
+              </div>
+            )}
             {isSubmitting ? (
-              <>
+              <span className="flex items-center">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Submitting...
-              </>
+              </span>
             ) : (
               'Submit & Create Member'
             )}
@@ -1403,10 +1408,49 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
         </div>
       </div>
     );
-  };
+  }, [watch]);
 
+  const termsAccepted = watch('agreeToTerms') && watch('agreeToPrivacy');
+
+  // Handle form submission
+  const handleFormSubmit = async (data: FormValues) => {
+    if (isSubmitting) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Check if terms and privacy are accepted
+      if (!data.agreeToTerms || !data.agreeToPrivacy) {
+        toast({
+          title: 'Accept Terms Required',
+          description: 'Please accept both the Terms of Service and Privacy Policy to continue.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Call the actual submission handler
+      await onSubmit(data);
+      onSuccess();
+      
+    } catch (error) {
+      console.error('Form submission error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to submit form. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  // Main form render
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form 
+      onSubmit={handleSubmit(handleFormSubmit)}
+      className="space-y-6"
+    >
       {/* Progress Steps */}
       <nav aria-label="Progress">
         <ol className="flex items-center">
@@ -1485,12 +1529,58 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
                 >
                   Save Draft
                 </Button>
-                <Button type="button" onClick={nextStep}>
+                <Button 
+                  type="button" 
+                  onClick={async () => {
+                    // Trigger validation for current step
+                    const fields = steps[currentStep].fields || [];
+                    const isValid = await trigger(fields);
+                    if (isValid) {
+                      // If this is the last step before review, check terms
+                      if (currentStep === steps.length - 2) {
+                        if (!watch('agreeToTerms') || !watch('agreeToPrivacy')) {
+                          toast({
+                            title: 'Accept Terms Required',
+                            description: 'Please accept both the Terms of Service and Privacy Policy to continue.',
+                            variant: 'destructive',
+                          });
+                          return;
+                        }
+                      }
+                      nextStep();
+                    } else {
+                      // Scroll to the first error
+                      const firstError = document.querySelector('.text-red-500');
+                      if (firstError) {
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }
+                  }}
+                >
                   Next
                 </Button>
               </>
             ) : (
-              <Button type="submit" disabled={isSubmitting}>
+              <Button 
+                type="submit"
+                disabled={isSubmitting || !termsAccepted}
+                className={`relative ${!termsAccepted ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={(e) => {
+                  if (!termsAccepted) {
+                    e.preventDefault();
+                    toast({
+                      title: 'Terms Required',
+                      description: 'Please accept the terms and privacy policy to continue.',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+              >
+                {(!watch('agreeToTerms') || !watch('agreeToPrivacy')) && (
+                  <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                    !
+                  </div>
+                )}
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1506,6 +1596,6 @@ const AddMemberForm: React.FC<AddMemberFormProps> = ({ onSuccess, societyId }) =
       </div>
     </form>
   );
-};
+}
 
 export default AddMemberForm;

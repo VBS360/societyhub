@@ -61,6 +61,7 @@ const injectDatePickerStyles = () => {
 interface DateOfBirthInputProps {
   value: Date | string | null;
   onChange: (date: Date | null) => void;
+  onBlur?: () => void;
   error?: string;
   label?: string;
   required?: boolean;
@@ -70,6 +71,7 @@ interface DateOfBirthInputProps {
 export function DateOfBirthInput({
   value,
   onChange,
+  onBlur,
   error,
   required = true,
   className = '',
@@ -131,8 +133,12 @@ export function DateOfBirthInput({
   const handleDateChange = (date: Date | null) => {
     if (date && isValid(date)) {
       onChange(date);
-      const input = document.querySelector('input[placeholder="DD/MM/YYYY"]') as HTMLInputElement;
-      if (input) {
+      // Close the date picker after selection
+      setIsOpen(false);
+      
+      // Update the input field with the formatted date
+      const input = document.activeElement as HTMLInputElement;
+      if (input && input.placeholder === 'DD/MM/YYYY') {
         input.value = format(date, 'dd/MM/yyyy');
       }
     } else {
@@ -141,33 +147,62 @@ export function DateOfBirthInput({
   };
 
   const handleManualDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value === '') {
+    const input = e.target.value.replace(/[^0-9/]/g, ''); // Remove any non-digit and non-slash characters
+    
+    // Don't allow more than 10 characters (dd/mm/yyyy)
+    if (input.length > 10) return;
+
+    // Format the input as the user types
+    let formattedInput = input;
+    if (input.length > 2 && input[2] !== '/') {
+      formattedInput = `${input.substring(0, 2)}/${input.substring(2)}`;
+    }
+    if (input.length > 5 && input[5] !== '/') {
+      formattedInput = `${formattedInput.substring(0, 5)}/${formattedInput.substring(5)}`;
+    }
+
+    // Update the input value
+    e.target.value = formattedInput;
+    
+    // If the date is complete, parse and validate it
+    if (formattedInput.length === 10) {
+      const [day, month, year] = formattedInput.split('/').map(Number);
+      
+      // Basic validation for day, month, and year ranges
+      const isValidDate = (d: number, m: number, y: number) => {
+        if (m < 1 || m > 12) return false;
+        
+        const lastDayOfMonth = new Date(y, m, 0).getDate();
+        if (d < 1 || d > lastDayOfMonth) return false;
+        
+        const currentYear = new Date().getFullYear();
+        if (y < 1900 || y > currentYear) return false;
+        
+        return true;
+      };
+      
+      if (isValidDate(day, month, year)) {
+        const parsedDate = parse(formattedInput, 'dd/MM/yyyy', new Date());
+        if (isValid(parsedDate)) {
+          onChange(parsedDate);
+          return;
+        }
+      }
+    } else if (formattedInput === '') {
+      // Clear the date if input is empty
       onChange(null);
-      return;
-    }
-    
-    // Basic format validation before parsing
-    if (!/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value)) {
-      // @ts-ignore - We're handling string state for partial inputs
-      onChange(value);
-      return;
-    }
-    
-    const parsedDate = parse(value, 'dd/MM/yyyy', new Date());
-    if (isValid(parsedDate)) {
-      onChange(parsedDate);
-    } else {
-      // @ts-ignore - We're handling string state for validation
-      onChange(value);
     }
   };
 
-  const getDisplayValue = () => {
+  const getDisplayValue = (): string => {
     if (!value) return '';
     
     if (typeof value === 'string') {
-      return value;
+      // If it's a string but matches the format, return it as is
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(value)) {
+        return value;
+      }
+      return '';
     }
     
     try {
@@ -194,6 +229,7 @@ export function DateOfBirthInput({
             value={displayValue}
             onChange={handleManualDateChange}
             onFocus={() => setIsOpen(true)}
+            onBlur={onBlur}
             className={cn(
               'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
