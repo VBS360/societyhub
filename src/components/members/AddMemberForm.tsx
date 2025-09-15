@@ -124,37 +124,45 @@ const formSchema = z.object({
   dateOfShareTransfer: z.date().optional(),
   parkingSlots: z.array(z.object({
     type: z.enum(['car', 'bike', 'other']),
-    slotNumber: z.string().min(1, 'Slot number is required'),
-  })),
+    slotNumber: z.string().min(1, 'Slot number is required').optional(),
+  })).optional(),
   
   // Membership & Financial
-  dateOfAdmission: z.date({
-    required_error: 'Date of admission is required',
-  }),
-  entranceFee: z.number().min(0, 'Entrance fee cannot be negative'),
-  shareCertificateNumber: z.string().min(1, 'Share certificate number is required'),
-  nominees: z.array(z.object({
-    name: z.string().min(1, 'Nominee name is required'),
-    address: z.string().min(10, 'Address is required'),
-    percentage: z.number().min(0).max(100, 'Percentage cannot exceed 100%'),
-  })).refine(
-    (nominees) => {
-      const total = nominees.reduce((sum, n) => sum + n.percentage, 0);
-      return total === 100;
-    },
-    {
-      message: 'Total percentage must be 100%',
-      path: ['nominees'],
-    }
-  ),
+  dateOfAdmission: z.date().optional(),
+  entranceFee: z
+    .number({ invalid_type_error: 'Entrance fee must be a number' })
+    .min(0, 'Entrance fee cannot be negative')
+    .optional(),
+  shareCertificateNumber: z.string().optional(),
+  nominees: z
+    .array(
+      z.object({
+        name: z.string().min(1, 'Nominee name is required'),
+        address: z.string().min(10, 'Address is required'),
+        percentage: z.number().min(0).max(100, 'Percentage cannot exceed 100%'),
+      })
+    )
+    .refine(
+      (nominees) => {
+        if (!nominees || nominees.length === 0) return true;
+        const total = nominees.reduce((sum, n) => sum + (n.percentage || 0), 0);
+        return total === 100;
+      },
+      {
+        message: 'Total percentage must be 100%',
+        path: ['nominees'],
+      }
+    )
+    .optional(),
   
   // Additional Details
-  emergencyContactName: z.string().min(1, 'Emergency contact name is required'),
-  emergencyContactNumber: z.string()
-    .min(10, 'Emergency contact must be 10 digits')
-    .max(10, 'Emergency contact must be 10 digits')
-    .regex(/^[0-9]+$/, 'Emergency contact must contain only numbers'),
-  vehicleNumbers: z.array(z.string()),
+  emergencyContactName: z.string().optional(),
+  emergencyContactNumber: z
+    .string()
+    .regex(/^[0-9]*$/, 'Emergency contact must contain only numbers')
+    .max(10, 'Emergency contact must be at most 10 digits')
+    .optional(),
+  vehicleNumbers: z.array(z.string()).optional(),
   documentProofs: z.any().optional(),
   
   // Terms & Conditions
