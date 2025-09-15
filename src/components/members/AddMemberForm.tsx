@@ -348,8 +348,22 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
     setIsSubmitting(true);
     console.log('isSubmitting set to true');
     try {
+      // Prepare family members data as array
+      const familyMembersArray = formData.familyMembers && formData.familyMembers.length > 0
+        ? formData.familyMembers
+            .filter(member => member && member.name.trim() !== '')
+            .map(member => `${member.name.trim()} (${member.relation})`)
+        : [];
+
+      // Prepare vehicle numbers as array
+      const vehicleNumbersArray = formData.vehicleNumbers && formData.vehicleNumbers.length > 0
+        ? formData.vehicleNumbers.filter((vehicle): vehicle is string => 
+            typeof vehicle === 'string' && vehicle.trim() !== ''
+          ).map(vehicle => vehicle.trim())
+        : [];
+
       // Prepare the data for submission
-      const memberData = {
+      const finalMemberData = {
         first_name: formData.firstName.trim(),
         middle_name: formData.middleName?.trim() || null,
         last_name: formData.lastName.trim(),
@@ -358,8 +372,8 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
         phone: formData.mobile.trim(),
         unit_number: formData.flatNumber.trim(),
         is_owner: formData.membershipType === 'owner',
-        emergency_contact: formData.emergencyContactNumber.trim(),
-        emergency_contact_name: formData.emergencyContactName.trim(),
+        emergency_contact: formData.emergencyContactNumber?.trim() || null,
+        emergency_contact_name: formData.emergencyContactName?.trim() || null,
         date_of_birth: formData.dateOfBirth.toISOString(),
         aadhaar_number: formData.aadhaarNumber.trim(),
         is_minor: formData.isMinor,
@@ -368,7 +382,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
         residential_address: formData.residentialAddress.trim(),
         office_address: formData.officeAddress?.trim() || null,
         society_id: societyId,
-        role: 'resident' as const, // Explicitly type as 'resident'
+        role: 'resident' as const,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         is_active: true,
@@ -379,6 +393,8 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
         date_of_share_transfer: formData.dateOfShareTransfer?.toISOString() || null,
         entrance_fee: formData.entranceFee || 0,
         share_certificate_number: formData.shareCertificateNumber || null,
+        family_members: familyMembersArray,
+        vehicle_details: vehicleNumbersArray.join(', ')
       };
 
       // Start a transaction to ensure data consistency
@@ -398,7 +414,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
         const { error: updateError } = await supabase
           .from('profiles')
           .update({
-            ...memberData,
+            ...finalMemberData,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingUser.id);
@@ -429,7 +445,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
 
         // Create profile with additional data
         const profileData = {
-          ...memberData,
+          ...finalMemberData,
           id: userId,
           user_id: userId,
           // Ensure all required fields are present
@@ -447,125 +463,32 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
         if (profileError) throw profileError;
       }
 
-      // Save family members
-      if (formData.familyMembers && formData.familyMembers.length > 0) {
-        const familyData = formData.familyMembers
-          .filter(member => member && member.name.trim() !== '')
-          .map(member => ({
-            member_id: userId,
-            name: member.name.trim(),
-            relation: member.relation,
-            date_of_birth: member.dateOfBirth.toISOString(),
-            society_id: societyId
-          }));
+      // Success - show success message and close dialog
+      toast({
+        title: 'Member Added Successfully',
+        description: `${formData.firstName} ${formData.lastName} has been added to the society.`,
+      });
 
-        if (familyData.length > 0) {
-          // Delete existing family members first to avoid duplicates
-          const { error: deleteError } = await supabase.rpc('delete_family_members', {
-            p_member_id: userId
-          });
-
-          if (deleteError) throw deleteError;
-
-          // Insert new family members
-          const { error: familyError } = await supabase.rpc(
-            'insert_family_members',
-            { members: familyData }
-          );
-
-          if (familyError) throw familyError;
-        }
+      // Call onSuccess callback if provided
+      if (onSuccess) {
+        onSuccess();
       }
 
-      // Save vehicle numbers
-      if (formData.vehicleNumbers && formData.vehicleNumbers.length > 0) {
-        const vehicleData = formData.vehicleNumbers
-          .filter((vehicle): vehicle is string => typeof vehicle === 'string' && vehicle.trim() !== '')
-          .map(vehicle => ({
-            member_id: userId,
-            vehicle_number: vehicle.trim(),
-            society_id: societyId
-          }));
-
-        if (vehicleData.length > 0) {
-          // Delete existing vehicle numbers first to avoid duplicates
-          const { error: deleteError } = await supabase.rpc('delete_vehicles', {
-            p_member_id: userId
-          });
-
-          if (deleteError) throw deleteError;
-
-          // Insert new vehicle numbers
-          const { error: vehicleError } = await supabase.rpc(
-            'insert_vehicles',
-            { vehicles: vehicleData }
-          );
-
-          if (vehicleError) throw vehicleError;
-        }
-      }
-
-      // Handle document uploads
-      if (formData.documentProofs && formData.documentProofs.length > 0) {
-        const files = Array.from(formData.documentProofs);
-        
-        // Delete existing documents first
-        await supabase.rpc('delete_member_documents', {
-          p_member_id: userId
-        });
-
-        const uploadPromises = files.map(async (file: File) => {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${userId}-${Date.now()}.${fileExt}`;
-          const filePath = `documents/${societyId}/${userId}/${fileName}`;
-
-          // Upload file to storage
-          const { error: uploadError } = await supabase.storage
-            .from('member-documents')
-            .upload(filePath, file);
-
-          if (uploadError) throw uploadError;
-
-          // Get public URL
-          const { data: { publicUrl } } = supabase.storage
-            .from('member-documents')
-            .getPublicUrl(filePath);
-
-          // Prepare document data
-          const documentData = {
-            member_id: userId,
-            file_name: file.name,
-            file_path: filePath,
-            file_url: publicUrl,
-            file_type: file.type,
-            file_size: file.size,
-            society_id: societyId
-          };
-
-          // Save document reference using RPC
-          const { error: docError } = await supabase.rpc(
-            'insert_member_document',
-            { document: documentData }
-          );
-
-          if (docError) throw docError;
-        });
-
-        await Promise.all(uploadPromises);
-      }
-
-      onSuccess();
+      console.log('Member created successfully');
+      
     } catch (error) {
-      console.error('Error submitting form:', error);
+      console.error('Form submission error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to submit form. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to submit form. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Handle form submission - removed duplicate
 
   const nextStep = async () => {
     const currentFields = steps[currentStep]?.fields || [];
