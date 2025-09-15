@@ -63,27 +63,23 @@ export const RoleManagement = ({ societyId, onRoleSelect }: RoleManagementProps)
     try {
       const { data, error } = await supabase
         .from('society_roles')
-        .insert([
-          { 
-            society_id: societyId, 
-            name: newRoleName.trim(),
-            description: `Custom role: ${newRoleName}`
-          }
-        ])
-        .select();
-
-      window.location.reload();
+        .insert({
+          society_id: societyId, 
+          name: newRoleName.trim(),
+          description: `Custom role: ${newRoleName}`
+        } as any)
+        .select()
+        .single();
 
       if (error) throw error;
       
-      const newRole = data?.[0];
       setNewRoleName('');
       await fetchRoles();
       
       // Select the newly created role
-      if (newRole) {
-        setSelectedRoleId(newRole.id);
-        onRoleSelect(newRole.id);
+      if (data) {
+        setSelectedRoleId((data as any).id);
+        onRoleSelect((data as any).id);
       }
       
       toast.success('Role created successfully');

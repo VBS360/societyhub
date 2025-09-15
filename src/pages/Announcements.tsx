@@ -140,7 +140,7 @@ const Announcements = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-                    {announcements.filter(a => a.is_pinned).length}
+                    {announcements.filter(a => a.is_urgent).length}
                   </div>
                   <p className="text-sm text-purple-600 dark:text-purple-400">Active</p>
                 </div>

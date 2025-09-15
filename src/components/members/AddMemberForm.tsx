@@ -335,20 +335,8 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
 
   const onSubmit = async (formData: FormValues): Promise<void> => {
     if (isSubmitting) return;
-    if (!formData.documentProofs) {
-      toast({
-        title: 'Error',
-        description: 'Please upload all required documents',
-        variant: 'destructive',
-      });
-      return;
-    }
+    
     console.log('Form submitting with data:', formData);
-    if (isSubmitting) {
-      console.log('Already submitting, ignoring duplicate click');
-      return;
-    }
-    console.log('Form data to submit:', formData);
     setIsSubmitting(true);
     console.log('isSubmitting set to true');
     try {
@@ -1182,6 +1170,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           <div className="flex items-center space-x-2">
             <Checkbox
               id="agreeToTerms"
+              checked={watch('agreeToTerms')}
               onCheckedChange={(checked) => setValue('agreeToTerms', checked as boolean)}
             />
             <Label htmlFor="agreeToTerms" className="font-normal">
@@ -1197,6 +1186,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           <div className="flex items-center space-x-2">
             <Checkbox
               id="agreeToPrivacy"
+              checked={watch('agreeToPrivacy')}
               onCheckedChange={(checked) => setValue('agreeToPrivacy', checked as boolean)}
             />
             <Label htmlFor="agreeToPrivacy" className="font-normal">
@@ -1371,40 +1361,53 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           </CardContent>
         </Card>
         
-        <div className="flex items-center justify-between pt-4 border-t">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="confirmDetails"
-              checked={watch('agreeToTerms') && watch('agreeToPrivacy')}
-              onCheckedChange={(checked) => {
-                setValue('agreeToTerms', checked as boolean);
-                setValue('agreeToPrivacy', checked as boolean);
-              }}
-            />
-            <Label htmlFor="confirmDetails" className="font-normal">
-              I confirm that all the information provided is accurate
-            </Label>
+        <div className="space-y-4 pt-4 border-t">
+          {/* Terms and Conditions */}
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="agreeToTerms"
+                checked={watch('agreeToTerms')}
+                onCheckedChange={(checked) => setValue('agreeToTerms', checked as boolean)}
+              />
+              <Label htmlFor="agreeToTerms" className="font-normal">
+                I agree to the <a href="#" className="text-primary hover:underline">Terms of Service</a>
+              </Label>
+            </div>
+            {errors.agreeToTerms && (
+              <p className="text-sm text-red-500 ml-6">{errors.agreeToTerms.message}</p>
+            )}
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="agreeToPrivacy"
+                checked={watch('agreeToPrivacy')}
+                onCheckedChange={(checked) => setValue('agreeToPrivacy', checked as boolean)}
+              />
+              <Label htmlFor="agreeToPrivacy" className="font-normal">
+                I agree to the <a href="#" className="text-primary hover:underline">Privacy Policy</a>
+              </Label>
+            </div>
+            {errors.agreeToPrivacy && (
+              <p className="text-sm text-red-500 ml-6">{errors.agreeToPrivacy.message}</p>
+            )}
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="confirmDetails"
+                checked={watch('agreeToTerms') && watch('agreeToPrivacy')}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setValue('agreeToTerms', true);
+                    setValue('agreeToPrivacy', true);
+                  }
+                }}
+              />
+              <Label htmlFor="confirmDetails" className="font-normal">
+                I confirm that all the information provided is accurate
+              </Label>
+            </div>
           </div>
-          
-          <Button 
-            type="submit"
-            disabled={isSubmitting || !isFormValid || !watch('agreeToTerms') || !watch('agreeToPrivacy')}
-            className={`relative ${(!watch('agreeToTerms') || !watch('agreeToPrivacy')) ? 'bg-red-100 hover:bg-red-100' : ''}`}
-          >
-            {(!watch('agreeToTerms') || !watch('agreeToPrivacy')) && (
-              <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
-                !
-              </div>
-            )}
-            {isSubmitting ? (
-              <span className="flex items-center">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting...
-              </span>
-            ) : (
-              'Submit & Create Member'
-            )}
-          </Button>
         </div>
       </div>
     );
@@ -1418,6 +1421,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
     
     try {
       setIsSubmitting(true);
+      console.log('Form submission started with data:', data);
       
       // Check if terms and privacy are accepted
       if (!data.agreeToTerms || !data.agreeToPrivacy) {
@@ -1426,12 +1430,14 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           description: 'Please accept both the Terms of Service and Privacy Policy to continue.',
           variant: 'destructive',
         });
+        setIsSubmitting(false);
         return;
       }
       
       // Call the actual submission handler
       await onSubmit(data);
-      onSuccess();
+      
+      console.log('Form submitted successfully');
       
     } catch (error) {
       console.error('Form submission error:', error);

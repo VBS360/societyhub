@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
 interface Announcement {
-  is_pinned: unknown;
   id: string;
   title: string;
   content: string;
