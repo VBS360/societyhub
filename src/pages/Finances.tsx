@@ -1,9 +1,27 @@
-import { TrendingUp, TrendingDown, IndianRupee, CreditCard, Receipt, Calendar } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { TrendingUp, TrendingDown, IndianRupee, CreditCard, Receipt, Calendar, Plus, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import type { Transaction as TransactionType } from '@/types/finance';
+import { TransactionsTable } from '@/components/finances/TransactionsTable';
+import { supabase } from '../integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
+import { AddTransactionDialog, type TransactionData } from '@/components/finances/AddTransactionDialog';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-// AppLayout is now provided by the ProtectedRoute wrapper
 import { useFinances } from '@/hooks/useFinances';
+
+interface ExpenseItem {
+  id: string;
+  title: string;
+  category: string;
+  amount: number | string;
+  expense_date: string;
+  isTransaction?: boolean;
+  [key: string]: any;
+}
+
+type Transaction = TransactionType;
 
 const mockFinancials = {
   totalBalance: 285000,
@@ -19,38 +37,7 @@ const mockFinancials = {
       date: '2024-01-15',
       category: 'Maintenance'
     },
-    {
-      id: '2',
-      type: 'expense',
-      amount: 12000,
-      description: 'Elevator Maintenance',
-      date: '2024-01-14',
-      category: 'Maintenance'
-    },
-    {
-      id: '3',
-      type: 'income',
-      amount: 3000,
-      description: 'Parking Fee - Unit B-205',
-      date: '2024-01-13',
-      category: 'Parking'
-    },
-    {
-      id: '4',
-      type: 'expense',
-      amount: 8500,
-      description: 'Security Services',
-      date: '2024-01-12',
-      category: 'Security'
-    },
-    {
-      id: '5',
-      type: 'income',
-      amount: 4500,
-      description: 'Maintenance Fee - Unit C-302',
-      date: '2024-01-11',
-      category: 'Maintenance'
-    }
+    // ... other mock data
   ],
   monthlyExpenseBreakdown: [
     { category: 'Security', amount: 25000, percentage: 35 },
@@ -62,26 +49,184 @@ const mockFinancials = {
 };
 
 const Finances = () => {
-  const { maintenanceFees, expenses, loading, error, stats } = useFinances();
+  const { profile } = useAuth();
+  const { 
+    maintenanceFees, 
+    expenses, 
+    transactions, 
+    loading, 
+    error, 
+    stats = {
+      totalBalance: 0,
+      monthlyIncome: 0,
+      monthlyExpenses: 0,
+      pendingDues: 0
+    }, 
+    refresh 
+  } = useFinances();
   
-  // Use mock data if loading or no data
-  const data = loading || !stats ? mockFinancials : {
-    totalBalance: stats.totalBalance,
-    monthlyIncome: 0, // These would need to be calculated from expenses
-    monthlyExpenses: stats.monthlyExpenses,
-    pendingDues: 0, // This would need to be calculated from maintenanceFees
-    recentTransactions: [],
-    monthlyExpenseBreakdown: []
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<TransactionData | null>(null);
+  const { toast } = useToast();
+  
+  // Combine expenses and expense transactions for the breakdown
+  const allExpenses = useMemo(() => {
+    const expenseList = [...(expenses || [])];
+    
+    // Add expense transactions that don't have a matching expense record
+    const expenseTransactions = (transactions || [])
+      .filter(tx => tx.type === 'expense' && tx.amount < 0)
+      .map(tx => ({
+        id: tx.id,
+        title: tx.description,
+        category: tx.category || 'Uncategorized',
+        amount: Math.abs(tx.amount),
+        expense_date: tx.date,
+        isTransaction: true,
+        // Add required properties to match ExpenseItem type
+        type: 'expense',
+        description: tx.description,
+        status: 'completed',
+        paymentMethod: tx.paymentMethod || 'other',
+        date: tx.date
+      } as ExpenseItem));
+      
+    return [...expenseList, ...expenseTransactions];
+  }, [expenses, transactions]);
+
+  // Type guard to check if an object is a valid Transaction
+  const isTransaction = (obj: any): obj is Transaction => {
+    return (
+      obj && 
+      typeof obj.id === 'string' &&
+      (typeof obj.amount === 'number' || typeof obj.amount === 'string') &&
+      (obj.type === 'income' || obj.type === 'expense')
+    );
   };
-  
-  // Merge mock data with actual data
-  const mergedData = {
-    ...mockFinancials,
-    ...data
+
+  // Convert any transaction-like object to a Transaction
+  const toTransaction = (data: any): Transaction => {
+    // Ensure we have a valid date string
+    let dateStr: string;
+    if (data.date instanceof Date) {
+      dateStr = data.date.toISOString();
+    } else if (typeof data.date === 'string') {
+      dateStr = data.date;
+    } else if (data.date && typeof data.date === 'object' && 'toDate' in data.date) {
+      // Handle Firestore timestamps if needed
+      dateStr = data.date.toDate().toISOString();
+    } else {
+      dateStr = new Date().toISOString();
+    }
+
+    // Ensure amount is a number
+    const amount = typeof data.amount === 'number' 
+      ? data.amount 
+      : parseFloat(data.amount) || 0;
+
+    // Return the transaction with all required fields
+    return {
+      id: data.id || '',
+      amount,
+      type: data.type === 'income' ? 'income' : 'expense',
+      description: data.description || '',
+      date: dateStr,
+      status: data.status || 'completed',
+      paymentMethod: data.payment_method || data.paymentMethod || 'other',
+      payment_method: data.payment_method || data.paymentMethod || 'other',
+      category: data.category || '',
+      reference: data.reference || null,
+      transaction_date: data.transaction_date || dateStr,
+      created_at: data.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      society_id: data.society_id || '',
+      created_by: data.created_by || '',
+      approved_by: data.approved_by || null,
+      receipt_url: data.receipt_url || null,
+      profiles: data.profiles || null
+    };
   };
-  
+
+  // Convert Transaction to TransactionData for the form
+  const transactionToFormData = (transaction: TransactionType): TransactionData => {
+    const safeTransaction = isTransaction(transaction) ? transaction : toTransaction(transaction);
+    
+    // Convert date to a proper Date object
+    let transactionDate: Date;
+    if (typeof safeTransaction.date === 'string') {
+      transactionDate = new Date(safeTransaction.date);
+    } else if (typeof safeTransaction.date === 'number') {
+      transactionDate = new Date(safeTransaction.date);
+    } else if (safeTransaction.date instanceof Date) {
+      transactionDate = safeTransaction.date;
+    } else {
+      transactionDate = new Date();
+    }
+    
+    // Ensure we have all required fields for TransactionData
+    return {
+      id: safeTransaction.id,
+      amount: safeTransaction.amount.toString(),
+      type: safeTransaction.type,
+      category: safeTransaction.category || 'other', // Default category if not provided
+      description: safeTransaction.description || '',
+      paymentMethod: safeTransaction.payment_method || 'cash', // Default payment method
+      reference: safeTransaction.reference,
+      date: transactionDate
+    };
+  };
+
+  const handleEditTransaction = (transaction: TransactionType) => {
+    // Convert the transaction to TransactionData before setting it for editing
+    const transactionData = transactionToFormData(transaction);
+    setEditingTransaction(transactionData);
+    setIsAddDialogOpen(true);
+  };
+
+  const handleDeleteTransaction = async (transactionId: string) => {
+    if (window.confirm('Are you sure you want to delete this transaction?')) {
+      try {
+        const { error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('id', transactionId);
+
+        if (error) throw error;
+
+        // Refresh the data
+        refresh();
+
+        toast({
+          title: 'Success',
+          description: 'Transaction deleted successfully',
+        });
+      } catch (error) {
+        console.error('Error deleting transaction:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to delete transaction',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      return Promise.reject('Deletion cancelled');
+    }
+  };
+
+  const handleTransactionSuccess = () => {
+    setEditingTransaction(null);
+    setIsAddDialogOpen(false);
+    refresh();
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   if (loading) {
-    return null; // AppLayout will handle the loading state
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   if (error) {
@@ -91,6 +236,15 @@ const Finances = () => {
       </div>
     );
   }
+
+  const data = {
+    totalBalance: stats?.totalBalance || 0,
+    monthlyIncome: stats?.monthlyIncome || 0,
+    monthlyExpenses: stats?.monthlyExpenses || 0,
+    pendingDues: stats?.pendingDues || 0,
+    recentTransactions: [],
+    monthlyExpenseBreakdown: []
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -102,37 +256,24 @@ const Finances = () => {
             Society financial overview and expense tracking
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Receipt className="h-4 w-4 mr-2" />
-            Generate Report
-          </Button>
-          <Button className="bg-gradient-to-r from-primary to-primary/80">
-            <IndianRupee className="h-4 w-4 mr-2" />
-            Add Transaction
-          </Button>
-        </div>
       </div>
 
-      {/* Financial Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/50 border-green-200 dark:border-green-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300">
               Total Balance
             </CardTitle>
-            <div className="h-8 w-8 rounded-full bg-green-200 dark:bg-green-800 flex items-center justify-center">
-              <IndianRupee className="h-4 w-4 text-green-700 dark:text-green-300" />
-            </div>
+            <IndianRupee className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-              ₹{mergedData.totalBalance.toLocaleString('en-IN')}
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+              ₹{stats.totalBalance.toLocaleString('en-IN')}
             </div>
-            <div className="flex items-center text-xs text-green-600 dark:text-green-400 mt-1">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +12% from last month
-            </div>
+            <p className="text-xs text-green-600 dark:text-green-400">
+              {stats.totalBalance >= 0 ? 'Positive' : 'Negative'} balance
+            </p>
           </CardContent>
         </Card>
 
@@ -141,109 +282,142 @@ const Finances = () => {
             <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">
               Monthly Income
             </CardTitle>
-            <div className="h-8 w-8 rounded-full bg-blue-200 dark:bg-blue-800 flex items-center justify-center">
-              <TrendingUp className="h-4 w-4 text-blue-700 dark:text-blue-300" />
-            </div>
+            <TrendingUp className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-              ₹{mergedData.monthlyIncome.toLocaleString('en-IN')}
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              ₹{stats.monthlyIncome.toLocaleString('en-IN')}
             </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-              From maintenance & fees
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              +12% from last month
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/50 border-orange-200 dark:border-orange-800">
+        <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/50 border-rose-200 dark:border-rose-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300">
+            <CardTitle className="text-sm font-medium text-rose-700 dark:text-rose-300">
               Monthly Expenses
             </CardTitle>
-            <div className="h-8 w-8 rounded-full bg-orange-200 dark:bg-orange-800 flex items-center justify-center">
-              <TrendingDown className="h-4 w-4 text-orange-700 dark:text-orange-300" />
-            </div>
+            <TrendingDown className="h-4 w-4 text-rose-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-              ₹{mergedData.monthlyExpenses.toLocaleString('en-IN')}
+            <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">
+              ₹{stats.monthlyExpenses.toLocaleString('en-IN')}
             </div>
-            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-              Operational costs
+            <p className="text-xs text-rose-600 dark:text-rose-400">
+              -8% from last month
             </p>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/50 border-red-200 dark:border-red-800">
+        <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/50 border-amber-200 dark:border-amber-800">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-red-700 dark:text-red-300">
+            <CardTitle className="text-sm font-medium text-amber-700 dark:text-amber-300">
               Pending Dues
             </CardTitle>
-            <div className="h-8 w-8 rounded-full bg-red-200 dark:bg-red-800 flex items-center justify-center">
-              <CreditCard className="h-4 w-4 text-red-700 dark:text-red-300" />
-            </div>
+            <CreditCard className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-700 dark:text-red-300">
-              ₹{mergedData.pendingDues.toLocaleString('en-IN')}
+            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+              ₹{stats.pendingDues.toLocaleString('en-IN')}
             </div>
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-              {maintenanceFees ? `From ${maintenanceFees.filter(f => f.status === 'pending').length} units` : 'Loading...'}
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {stats.pendingDues > 0 ? 'Overdue' : 'All clear'}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-6">
         {/* Recent Transactions */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5" />
-              Recent Transactions
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Receipt className="h-5 w-5" />
+                Recent Transactions
+              </CardTitle>
+              <Button 
+                size="sm" 
+                className="gap-1"
+                onClick={() => {
+                  setEditingTransaction(null);
+                  setIsAddDialogOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Add Transaction
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {maintenanceFees?.slice(0, 5).map((fee) => (
-                <div key={fee.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
-                      fee.status === 'paid' 
-                        ? 'bg-green-100 dark:bg-green-900' 
-                        : 'bg-red-100 dark:bg-red-900'
-                    }`}>
-                      {fee.status === 'paid' ? (
-                        <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">
-                        {fee.description || `Maintenance Fee - ${fee.profiles?.full_name}`}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="text-xs">
-                          {fee.status}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(fee.due_date).toLocaleDateString()}
-                        </span>
+              {transactions && transactions.length > 0 ? (
+                transactions.slice(0, 5).map((tx) => {
+                  const transaction = tx as unknown as Transaction;
+                  return (
+                    <div key={transaction.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-full ${
+                          transaction.type === 'income' 
+                            ? 'bg-green-100 text-green-600 dark:bg-green-900/50 dark:text-green-400' 
+                            : 'bg-rose-100 text-rose-600 dark:bg-rose-900/50 dark:text-rose-400'
+                        }`}>
+                          {transaction.type === 'income' ? (
+                            <ArrowUpCircle className="h-5 w-5" />
+                          ) : (
+                            <ArrowDownCircle className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium">{transaction.description}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(transaction.date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                            {transaction.category && ` • ${transaction.category}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className={`font-medium ${
+                        transaction.type === 'income' 
+                          ? 'text-green-600 dark:text-green-400' 
+                          : 'text-rose-600 dark:text-rose-400'
+                      }`}>
+                        {transaction.type === 'income' ? '+' : '-'}₹{Math.abs(transaction.amount).toLocaleString('en-IN')}
                       </div>
                     </div>
-                  </div>
-                  <div className={`font-medium ${
-                    fee.status === 'paid' 
-                      ? 'text-green-600 dark:text-green-400' 
-                      : 'text-red-600 dark:text-red-400'
-                  }`}>
-                    {fee.status === 'paid' ? '+' : '-'}₹{Number(fee.amount).toLocaleString('en-IN')}
-                  </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No recent transactions
                 </div>
-              ))}
+              )}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* All Transactions Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">All Transactions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {profile?.society_id ? (
+              <TransactionsTable 
+                societyId={profile.society_id} 
+                onEdit={handleEditTransaction}
+                onDelete={handleDeleteTransaction}
+              />
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No society associated with your account
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -253,28 +427,74 @@ const Finances = () => {
             <CardTitle>Monthly Expense Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {expenses?.slice(0, 5).map((expense, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{expense.category}</span>
-                    <span className="text-sm font-medium">₹{Number(expense.amount).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div 
-                      className="h-2 bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300"
-                      style={{ width: `${Math.min(100, (Number(expense.amount) / Math.max(1, ...(expenses?.map(e => Number(e.amount)) || [0]))) * 100)}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {expense.title} - {expense.profiles?.full_name}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {allExpenses && allExpenses.length > 0 ? (
+              <div className="space-y-4">
+                {(() => {
+                  // Group all expenses by category and calculate totals
+                  const categoryTotals = allExpenses.reduce<Record<string, number>>((acc, expense) => {
+                    const amount = typeof expense.amount === 'number' ? expense.amount : Number(expense.amount) || 0;
+                    const category = (expense.category?.trim() || 'Uncategorized').toLowerCase();
+                    acc[category] = (acc[category] || 0) + amount;
+                    return acc;
+                  }, {});
+
+                  const totalExpenses = Object.values(categoryTotals).reduce<number>(
+                    (sum, amount) => sum + (Number(amount) || 0), 
+                    0
+                  );
+
+                  // Convert to array, filter out zero amounts, and sort by amount (descending)
+                  return Object.entries(categoryTotals)
+                    .map(([category, amount]) => ({
+                      category,
+                      amount,
+                      percentage: totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0
+                    }))
+                    .filter(item => Number(item.amount) > 0)
+                    .sort((a, b) => b.amount - a.amount)
+                    .map(({ category, amount, percentage }) => (
+                      <div key={category} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium capitalize">{category}</span>
+                          <div className="text-sm font-medium">
+                            ₹{amount.toLocaleString('en-IN')}
+                            <span className="ml-2 text-muted-foreground">
+                              ({percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div 
+                            className="h-2 bg-gradient-to-r from-primary to-primary/80 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.min(100, percentage)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    ));
+                })()}
+              </div>
+            ) : (
+              <div className="text-center py-4 text-muted-foreground">
+                No expense data available for this month
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Add/Edit Transaction Dialog */}
+      {profile?.society_id && (
+        <AddTransactionDialog
+          open={isAddDialogOpen}
+          onOpenChange={(open) => {
+            setIsAddDialogOpen(open);
+            if (!open) setEditingTransaction(null);
+          }}
+          societyId={profile.society_id}
+          initialData={editingTransaction}
+          onSuccess={handleTransactionSuccess}
+        />
+      )}
     </div>
   );
 };

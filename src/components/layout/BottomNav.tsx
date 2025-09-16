@@ -5,6 +5,7 @@ import {
   CreditCard,
   Wrench,
   MessageSquare,
+  ListChecks,
 } from 'lucide-react'
 
 const items = [
@@ -23,7 +24,7 @@ export function BottomNav() {
       aria-label="Primary"
       className="fixed bottom-0 inset-x-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:hidden"
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-6">
         {items.map((item) => {
           const Icon = item.icon
           const active = location.pathname === item.href

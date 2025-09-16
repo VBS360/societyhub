@@ -14,6 +14,76 @@ export type Database = {
   }
   public: {
     Tables: {
+      transactions: {
+        Row: {
+          id: string
+          type: 'income' | 'expense'
+          amount: number
+          category: string
+          description: string | null
+          payment_method: string
+          reference: string | null
+          transaction_date: string
+          society_id: string
+          created_by: string
+          approved_by: string | null
+          created_at: string
+          updated_at: string
+          receipt_url: string | null
+        }
+        Insert: {
+          id?: string
+          type: 'income' | 'expense'
+          amount: number
+          category: string
+          description?: string | null
+          payment_method: string
+          reference?: string | null
+          transaction_date: string
+          society_id: string
+          created_by: string
+          approved_by?: string | null
+          created_at?: string
+          updated_at?: string
+          receipt_url?: string | null
+        }
+        Update: {
+          id?: string
+          type?: 'income' | 'expense'
+          amount?: number
+          category?: string
+          description?: string | null
+          payment_method?: string
+          reference?: string | null
+          transaction_date?: string
+          society_id?: string
+          created_by?: string
+          approved_by?: string | null
+          created_at?: string
+          updated_at?: string
+          receipt_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_society_id_fkey"
+            columns: ["society_id"]
+            referencedRelation: "societies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_created_by_fkey"
+            columns: ["created_by"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_approved_by_fkey"
+            columns: ["approved_by"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      },
       amenities: {
         Row: {
           advance_booking_days: number | null
