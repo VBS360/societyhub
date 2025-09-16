@@ -214,11 +214,30 @@ const Finances = () => {
     }
   };
 
-  const handleTransactionSuccess = () => {
+  const handleTransactionSuccess = async () => {
     setEditingTransaction(null);
     setIsAddDialogOpen(false);
-    refresh();
-    setRefreshTrigger(prev => prev + 1);
+    
+    try {
+      // Force refresh transactions and stats
+      await refresh();
+      
+      // Increment refresh trigger to force re-render
+      setRefreshTrigger(prev => prev + 1);
+      
+      toast({
+        title: 'Success',
+        description: 'Transaction updated successfully',
+        variant: 'default',
+      });
+    } catch (error) {
+      console.error('Error refreshing transactions:', error);
+      toast({
+        title: 'Error',
+        description: 'Transaction saved but failed to refresh the list',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (loading) {

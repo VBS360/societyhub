@@ -33,6 +33,37 @@ export function TransactionsTable({ societyId, onEdit, onDelete }: TransactionsT
     search: '',
   });
 
+  // Set up real-time subscription to transactions
+  useEffect(() => {
+    if (!societyId) return;
+
+    // Initial fetch
+    fetchTransactions();
+
+    // Subscribe to changes in the transactions table
+    const subscription = supabase
+      .channel('transactions_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `society_id=eq.${societyId}`
+        },
+        (payload) => {
+          console.log('Transaction change detected:', payload);
+          fetchTransactions(); // Refresh the table when any change occurs
+        }
+      )
+      .subscribe();
+
+    // Clean up subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [societyId]);
+
   const fetchTransactions = async () => {
     try {
       setLoading(true);
