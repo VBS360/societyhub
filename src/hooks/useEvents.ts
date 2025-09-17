@@ -3,6 +3,10 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 
 interface Event {
+  attendee_count: number;
+  image_url: any;
+  category: string;
+  category: any;
   id: string;
   title: string;
   description?: string;
