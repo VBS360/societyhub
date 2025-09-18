@@ -1,11 +1,37 @@
-import { Shield, Clock, CheckCircle, XCircle, Plus, Filter, Phone, User } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Shield, Clock, CheckCircle, XCircle, Filter, Phone, User, Search, Calendar as CalendarIcon } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-// AppLayout is now provided by the ProtectedRoute wrapper
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useVisitors } from '@/hooks/useVisitors';
+import { format, subDays } from 'date-fns';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { VisitorActions } from '@/components/visitors/VisitorActions';
+import { AddVisitorDialog } from '@/components/visitors/AddVisitorDialog';
+import { error } from 'console';
+
+// Define the Visitor type locally since it's not exported from useVisitors
+interface Visitor {
+  id: string;
+  visitor_name: string;
+  visitor_phone?: string;
+  purpose: string;
+  host_profile_id: string;
+  society_id: string;
+  visit_date: string;
+  entry_time?: string;
+  exit_time?: string;
+  status: string;
+  security_notes?: string;
+  created_at: string;
+  updated_at: string;
+  profiles?: { full_name: string; unit_number: string };
+}
 
 const statusColors = {
   pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
@@ -54,10 +80,100 @@ const calculateDuration = (entryTime: string | null, exitTime: string | null) =>
 };
 
 const Visitors = () => {
-  const { visitors, loading, error } = useVisitors();
+  const { visitors = [], loading, error } = useVisitors();
+  
+  // Function to refresh the visitors list
+  const refreshVisitors = () => {
+    // The real-time subscription in useVisitors will handle the refresh
+    // This is a no-op as the component will re-render when data changes
+  };
+  
+  // Type guard to check if visitor is not null/undefined
+  const isValidVisitor = (visitor: Visitor | null | undefined): visitor is Visitor => {
+    return !!visitor && !!visitor.id;
+  };
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('all');
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  
+  const filteredVisitors = useMemo(() => {
+    console.log('Filtering visitors:', { 
+      activeTab, 
+      dateFilter: dateFilter?.toISOString(),
+      searchTerm,
+      totalVisitors: visitors.length
+    });
+    
+    return visitors
+      .filter(isValidVisitor)
+      .filter(visitor => {
+        try {
+          // Filter by search term
+          const matchesSearch = 
+            !searchTerm ||
+            (visitor.visitor_name && visitor.visitor_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (visitor.visitor_phone && visitor.visitor_phone.includes(searchTerm)) ||
+            (visitor.profiles?.unit_number && visitor.profiles.unit_number.toLowerCase().includes(searchTerm.toLowerCase()));
+          
+          // If no date filter is active, just return the search results
+          if (activeTab !== 'today' && !dateFilter) {
+            console.log('No date filter, matchesSearch:', matchesSearch);
+            return matchesSearch;
+          }
+          
+          // Get the visit date from the visitor record
+          if (!visitor.visit_date) {
+            console.log('No visit date for visitor:', visitor.id);
+            return false;
+          }
+          
+          const visitDate = new Date(visitor.visit_date);
+          if (isNaN(visitDate.getTime())) {
+            console.error('Invalid visit date:', visitor.visit_date);
+            return false;
+          }
+          
+          // Get today's date at midnight for comparison
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          // Get the filter date (either from date picker or today)
+          const filterDate = dateFilter ? new Date(dateFilter) : new Date();
+          filterDate.setHours(0, 0, 0, 0);
+          
+          // Create comparison dates (just the date part)
+          const visitDateOnly = new Date(visitDate);
+          visitDateOnly.setHours(0, 0, 0, 0);
+          
+          // Check if the visit date matches the filter date
+          const isSameDay = visitDateOnly.getTime() === filterDate.getTime();
+          
+          console.log('Date comparison:', {
+            visitorId: visitor.id,
+            visitorName: visitor.visitor_name,
+            visitDate: visitDate.toISOString(),
+            visitDateOnly: visitDateOnly.toISOString(),
+            filterDate: filterDate.toISOString(),
+            isSameDay,
+            matchesSearch
+          });
+          
+          return matchesSearch && isSameDay;
+        } catch (error) {
+          console.error('Error filtering visitor:', visitor.id, error);
+          return false;
+        }
+      });
+  }, [visitors, searchTerm, dateFilter, activeTab]);
   
   if (loading) {
-    return null; // AppLayout will handle the loading state
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -78,14 +194,11 @@ const Visitors = () => {
             Manage visitor entries and track society security
           </p>
         </div>
-        <Button className="bg-gradient-to-r from-primary to-primary/80">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Visitor
-        </Button>
+        <AddVisitorDialog onSuccess={refreshVisitors} />
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats Card */}
+      <div className="grid grid-cols-1">
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50 border-blue-200 dark:border-blue-800">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -99,169 +212,188 @@ const Visitors = () => {
             </div>
           </CardContent>
         </Card>
-        
-        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950/50 dark:to-yellow-900/50 border-yellow-200 dark:border-yellow-800">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
-                  {visitors.filter(visitor => visitor.status === 'pending').length}
-                </div>
-                <p className="text-sm text-yellow-600 dark:text-yellow-400">Pending</p>
-              </div>
-              <Clock className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/50 border-orange-200 dark:border-orange-800">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-                  {visitors.filter(visitor => visitor.status === 'in_progress').length}
-                </div>
-                <p className="text-sm text-orange-600 dark:text-orange-400">In Progress</p>
-              </div>
-              <User className="h-8 w-8 text-orange-600 dark:text-orange-400" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/50 border-green-200 dark:border-green-800">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                  {visitors.filter(visitor => visitor.status === 'completed').length}
-                </div>
-                <p className="text-sm text-green-600 dark:text-green-400">Completed</p>
-              </div>
-              <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Search and Filter */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
-          <Input 
-            placeholder="Search visitors by name, phone, or purpose..." 
-            className="pl-4"
-          />
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search visitors by name, phone, or purpose..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
-        <Button variant="outline" className="flex items-center gap-2">
-          <Filter className="h-4 w-4" />
-          Filter
-        </Button>
+        
+        <div className="flex gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start text-left font-normal">
+                <Filter className="mr-2 h-4 w-4" />
+                Filter by date
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={dateFilter}
+                onSelect={setDateFilter}
+                initialFocus
+              />
+              {dateFilter && (
+                <div className="p-2 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setDateFilter(undefined)}
+                  >
+                    Clear date
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {/* Visitors List */}
-      <div className="space-y-4">
-        {visitors.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No visitors found.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          visitors.map((visitor) => (
-          <Card key={visitor.id} className="hover:shadow-lg transition-shadow">
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-12 w-12">
-                        <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
-                          {visitor.visitor_name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <h3 className="font-semibold text-lg">{visitor.visitor_name}</h3>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          <span>{visitor.visitor_phone}</span>
+      <Tabs 
+        value={activeTab}
+        className="space-y-4"
+        onValueChange={(value) => {
+          console.log('Tab changed to:', value);
+          setActiveTab(value);
+          if (value === 'today') {
+            const today = new Date();
+            console.log('Setting date filter to today:', today.toISOString());
+            setDateFilter(today);
+          } else {
+            console.log('Clearing date filter');
+            setDateFilter(undefined);
+          }
+        }}
+      >
+        <TabsList>
+          <TabsTrigger value="all">
+            All
+          </TabsTrigger>
+          <TabsTrigger value="today">
+            Today
+          </TabsTrigger>
+        </TabsList>
+        
+        <div className="space-y-4">
+          {filteredVisitors.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <p className="text-muted-foreground">No visitors found matching your criteria.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            filteredVisitors.map((visitor) => (
+              <Card key={visitor.id} className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-12 w-12">
+                          <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
+                            {visitor.visitor_name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <h3 className="text-lg font-semibold">{visitor.visitor_name}</h3>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            <span>{visitor.visitor_phone || 'N/A'}</span>
+                          </div>
                         </div>
                       </div>
+                      <VisitorActions 
+                        visitor={{
+                          id: visitor.id,
+                          status: visitor.status,
+                          entry_time: visitor.entry_time || null,
+                          exit_time: visitor.exit_time || null
+                        }} 
+                        onStatusChange={refreshVisitors} 
+                      />
                     </div>
-                    <Badge className={`text-xs ${statusColors[visitor.status]}`}>
-                      <div className="flex items-center gap-1">
-                        {getStatusIcon(visitor.status)}
-                        {visitor.status.replace('_', ' ').toUpperCase()}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Purpose:</span>
+                        <p className="font-medium mt-1">{visitor.purpose || 'N/A'}</p>
                       </div>
-                    </Badge>
+                      
+                      <div>
+                        <span className="text-muted-foreground">Host:</span>
+                        <p className="font-medium mt-1">
+                          {visitor.profiles?.full_name || 'N/A'}
+                          {visitor.profiles?.unit_number && ` (${visitor.profiles.unit_number})`}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <span className="text-muted-foreground">Visit Date:</span>
+                        <p className="font-medium mt-1">
+                          {visitor.visit_date ? new Date(visitor.visit_date).toLocaleDateString('en-IN', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          }) : 'N/A'}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <span className="text-muted-foreground">Entry Time:</span>
+                        <p className="font-medium mt-1">
+                          {visitor.entry_time ? new Date(visitor.entry_time).toLocaleTimeString('en-IN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }) : 'N/A'}
+                        </p>
+                      </div>
+                      
+                      <div>
+                        <span className="text-muted-foreground">Exit Time:</span>
+                        <p className="font-medium mt-1">
+                          {visitor.exit_time ? new Date(visitor.exit_time).toLocaleTimeString('en-IN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }) : 'N/A'}
+                        </p>
+                      </div>
+                      
+                      {visitor.entry_time && visitor.exit_time && (
+                        <div>
+                          <span className="text-muted-foreground">Duration:</span>
+                          <p className="font-medium mt-1">
+                            {calculateDuration(visitor.entry_time, visitor.exit_time)}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {visitor.security_notes && (
+                        <div className="md:col-span-2">
+                          <span className="text-muted-foreground">Security Notes:</span>
+                          <p className="font-medium mt-1">{visitor.security_notes}</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Purpose:</span>
-                      <p className="font-medium mt-1">{visitor.purpose}</p>
-                    </div>
-                    
-                    <div>
-                      <span className="text-muted-foreground">Host:</span>
-                      <p className="font-medium mt-1">
-                        {visitor.profiles?.full_name || 'Unknown Host'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{visitor.profiles?.unit_number || 'N/A'}</p>
-                    </div>
-                    
-                    <div>
-                      <span className="text-muted-foreground">Entry/Exit Time:</span>
-                      <p className="font-medium mt-1">
-                        {formatTime(visitor.entry_time)} - {formatTime(visitor.exit_time)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Duration: {calculateDuration(visitor.entry_time, visitor.exit_time)}
-                      </p>
-                    </div>
-                    
-                    <div>
-                      <span className="text-muted-foreground">Visit Date:</span>
-                      <p className="font-medium mt-1">
-                        {new Date(visitor.visit_date).toLocaleDateString('en-IN')}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {visitor.security_notes && (
-                    <div className="mt-3 p-2 bg-muted/50 rounded-lg">
-                      <span className="text-sm font-medium">Security Notes: </span>
-                      <span className="text-sm text-muted-foreground">{visitor.security_notes}</span>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex gap-2">
-                  {visitor.status === 'pending' && (
-                    <>
-                      <Button variant="outline" size="sm" className="text-red-600 border-red-300 hover:bg-red-50">
-                        Reject
-                      </Button>
-                      <Button size="sm" className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-                        Approve
-                      </Button>
-                    </>
-                  )}
-                  {visitor.status === 'in_progress' && (
-                    <Button size="sm" className="bg-gradient-to-r from-primary to-primary/80">
-                      Mark Exit
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))
-        )}
-      </div>
-    </div>
-  );
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      </Tabs>
+</div>
+);
 };
 
 export default Visitors;
