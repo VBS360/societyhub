@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 
 interface Profile {
+  society_name: string;
   id: string;
   user_id: string;
   society_id: string | null;

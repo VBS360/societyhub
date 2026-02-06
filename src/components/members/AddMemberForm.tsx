@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray, Controller, FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format, parse, isValid } from 'date-fns';
 import { DateOfBirthInput } from '@/components/ui/DateOfBirthInput';
-import { Calendar as CalendarIcon, Loader2, Shield, User, Users } from 'lucide-react';
-import DatePicker from 'react-datepicker';
+import { Loader2, Shield, User, Users } from 'lucide-react';
 import 'react-datepicker/dist/react-datepicker.css';
 import { Plus, Trash2, Upload, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,13 +16,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 
 type FormData = {
@@ -41,14 +35,14 @@ type FormData = {
   isMinor: boolean;
   guardianName?: string;
   guardianRelation?: string;
-  
+
   // Section 2: Family Members
   familyMembers: Array<{
     name: string;
     relation: string;
     dateOfBirth: Date;
   }>;
-  
+
   // Section 3: Flat & Ownership
   flatNumber: string;
   membershipType: 'owner' | 'associate' | 'tenant';
@@ -58,7 +52,7 @@ type FormData = {
     type: 'car' | 'bike' | 'other';
     slotNumber: string;
   }>;
-  
+
   // Section 4: Membership & Financial
   dateOfAdmission: Date;
   entranceFee: number;
@@ -68,13 +62,13 @@ type FormData = {
     address: string;
     percentage: number;
   }>;
-  
+
   // Section 5: Additional Details
   emergencyContactName: string;
   emergencyContactNumber: string;
   vehicleNumbers: string[];
   documentProofs: FileList | null;
-  
+
   // Terms & Conditions
   agreeToTerms: boolean;
   agreeToPrivacy: boolean;
@@ -104,7 +98,13 @@ const formSchema = z.object({
   isMinor: z.boolean().default(false),
   guardianName: z.string().optional(),
   guardianRelation: z.string().optional(),
-  
+  emergencyContactName: z.string().optional(),
+  emergencyContactNumber: z.string()
+    .optional()
+    .refine((value) => !value || (/^[0-9]{10}$/.test(value)), {
+      message: 'Emergency contact number must be 10 digits',
+    }),
+
   // Family Members
   familyMembers: z.array(z.object({
     name: z.string().min(1, 'Name is required'),
@@ -114,7 +114,7 @@ const formSchema = z.object({
       invalid_type_error: 'Invalid date',
     }),
   })),
-  
+
   // Flat & Ownership
   flatNumber: z.string().min(1, 'Flat number is required'),
   membershipType: z.enum(['owner', 'associate', 'tenant']),
@@ -126,7 +126,7 @@ const formSchema = z.object({
     type: z.enum(['car', 'bike', 'other']),
     slotNumber: z.string().min(1, 'Slot number is required').optional(),
   })).optional(),
-  
+
   // Membership & Financial
   dateOfAdmission: z.date().optional(),
   entranceFee: z
@@ -134,14 +134,12 @@ const formSchema = z.object({
     .min(0, 'Entrance fee cannot be negative')
     .optional(),
   shareCertificateNumber: z.string().optional(),
-  nominees: z
-    .array(
-      z.object({
-        name: z.string().min(1, 'Nominee name is required'),
-        address: z.string().min(10, 'Address is required'),
-        percentage: z.number().min(0).max(100, 'Percentage cannot exceed 100%'),
-      })
-    )
+  nominees: z.array(z.object({
+    name: z.string().min(1, 'Nominee name is required'),
+    address: z.string().min(1, 'Nominee address is required'),
+    percentage: z.number().min(1, 'Percentage must be at least 1').max(100, 'Percentage cannot exceed 100'),
+  })).optional()
+    .default([])
     .refine(
       (nominees) => {
         if (!nominees || nominees.length === 0) return true;
@@ -152,19 +150,12 @@ const formSchema = z.object({
         message: 'Total percentage must be 100%',
         path: ['nominees'],
       }
-    )
-    .optional(),
-  
+    ),
+
   // Additional Details
-  emergencyContactName: z.string().optional(),
-  emergencyContactNumber: z
-    .string()
-    .regex(/^[0-9]*$/, 'Emergency contact must contain only numbers')
-    .max(10, 'Emergency contact must be at most 10 digits')
-    .optional(),
   vehicleNumbers: z.array(z.string()).optional(),
   documentProofs: z.any().optional(),
-  
+
   // Terms & Conditions
   agreeToTerms: z.boolean().refine(val => val === true, {
     message: 'You must accept the terms and conditions',
@@ -198,21 +189,13 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Add loading state check
   if (!profile) {
     return <div className="flex items-center justify-center p-8">Loading...</div>;
   }
-  
-  const { 
-    control,
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors, isValid: isFormValid },
-    setValue,
-    trigger,
-  } = useForm<FormValues>({
+
+  const form = useForm<FormValues>({
     mode: 'onChange',
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -225,11 +208,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
         type: 'car',
         slotNumber: '',
       }],
-      nominees: [{
-        name: '',
-        address: '',
-        percentage: 100,
-      }],
+      nominees: [],
       vehicleNumbers: [''],
       membershipType: 'owner',
       isMinor: false,
@@ -238,25 +217,37 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
     },
   });
 
-  const { fields: familyMemberFields, append: appendFamilyMember, remove: removeFamilyMember } = 
+  const {
+    control,
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isValid: isFormValid },
+    setValue,
+    getValues,
+    trigger,
+    formState
+  } = form;
+
+  const { fields: familyMemberFields, append: appendFamilyMember, remove: removeFamilyMember } =
     useFieldArray({
       control,
       name: 'familyMembers',
     });
 
-  const { fields: parkingSlotFields, append: appendParkingSlot, remove: removeParkingSlot } = 
+  const { fields: parkingSlotFields, append: appendParkingSlot, remove: removeParkingSlot } =
     useFieldArray({
       control,
       name: 'parkingSlots',
     });
 
-  const { fields: nomineeFields, append: appendNominee, remove: removeNominee } = 
+  const { fields: nomineeFields, append: appendNominee, remove: removeNominee } =
     useFieldArray({
       control,
       name: 'nominees',
     });
 
-  const { fields: vehicleFields, append: appendVehicle, remove: removeVehicle } = 
+  const { fields: vehicleFields, append: appendVehicle, remove: removeVehicle } =
     useFieldArray({
       control,
       name: 'vehicleNumbers',
@@ -265,12 +256,12 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
   const isMinor = watch('isMinor');
   const dateOfBirth = watch('dateOfBirth');
   const nominees = watch('nominees');
-  
+
   // Calculate age based on date of birth
   useEffect(() => {
     if (dateOfBirth) {
       let birthDate: Date;
-      
+
       try {
         // Handle string input (from manual entry)
         if (typeof dateOfBirth === 'string') {
@@ -280,17 +271,17 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
         } else {
           birthDate = new Date(dateOfBirth);
         }
-        
+
         // Only proceed if we have a valid date
         if (isValid(birthDate)) {
           const today = new Date();
           let age = today.getFullYear() - birthDate.getFullYear();
           const monthDiff = today.getMonth() - birthDate.getMonth();
-          
+
           if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
             age--;
           }
-          
+
           setValue('isMinor', age < 18);
         }
       } catch (error) {
@@ -341,154 +332,127 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
     agreeToPrivacy: boolean;
   };
 
-  const onSubmit = async (formData: FormValues): Promise<void> => {
-    if (isSubmitting) return;
-    
-    console.log('Form submitting with data:', formData);
-    setIsSubmitting(true);
-    console.log('isSubmitting set to true');
-    try {
-      // Prepare family members data as array
-      const familyMembersArray = formData.familyMembers && formData.familyMembers.length > 0
-        ? formData.familyMembers
-            .filter(member => member && member.name.trim() !== '')
-            .map(member => `${member.name.trim()} (${member.relation})`)
-        : [];
+  type MemberRole = 'super_admin' | 'society_admin' | 'committee_member' | 'resident' | 'guest';
 
-      // Prepare vehicle numbers as array
-      const vehicleNumbersArray = formData.vehicleNumbers && formData.vehicleNumbers.length > 0
-        ? formData.vehicleNumbers.filter((vehicle): vehicle is string => 
-            typeof vehicle === 'string' && vehicle.trim() !== ''
-          ).map(vehicle => vehicle.trim())
-        : [];
-
-      // Prepare the data for submission
-      const finalMemberData = {
-        first_name: formData.firstName.trim(),
-        middle_name: formData.middleName?.trim() || null,
-        last_name: formData.lastName.trim(),
-        full_name: `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim(),
-        email: formData.email.toLowerCase().trim(),
-        phone: formData.mobile.trim(),
-        unit_number: formData.flatNumber.trim(),
-        is_owner: formData.membershipType === 'owner',
-        emergency_contact: formData.emergencyContactNumber?.trim() || null,
-        emergency_contact_name: formData.emergencyContactName?.trim() || null,
-        date_of_birth: formData.dateOfBirth.toISOString(),
-        aadhaar_number: formData.aadhaarNumber.trim(),
-        is_minor: formData.isMinor,
-        guardian_name: formData.guardianName?.trim() || null,
-        guardian_relation: formData.guardianRelation?.trim() || null,
-        residential_address: formData.residentialAddress.trim(),
-        office_address: formData.officeAddress?.trim() || null,
-        society_id: societyId,
-        role: 'resident' as const,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_active: true,
-        // Additional fields from the form
-        salutation: formData.salutation,
-        membership_type: formData.membershipType,
-        date_of_possession: formData.dateOfPossession.toISOString(),
-        date_of_share_transfer: formData.dateOfShareTransfer?.toISOString() || null,
-        entrance_fee: formData.entranceFee || 0,
-        share_certificate_number: formData.shareCertificateNumber || null,
-        family_members: familyMembersArray,
-        vehicle_details: vehicleNumbersArray.join(', ')
-      };
-
-      // Start a transaction to ensure data consistency
-      const { data: existingUser, error: findError } = await supabase
-        .from('profiles')
-        .select('id, user_id')
-        .or(`email.eq.${formData.email},phone.eq.${formData.mobile}`)
-        .maybeSingle();
-
-      if (findError) throw findError;
-
-      let userId: string;
-
-      if (existingUser) {
-        // Update existing user
-        userId = existingUser.user_id || existingUser.id;
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({
-            ...finalMemberData,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingUser.id);
-
-        if (updateError) throw updateError;
-      } else {
-        // Create new user in auth
-        const password = Math.random().toString(36).slice(-10);
-        const fullName = `${formData.firstName} ${formData.lastName}`.trim();
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: password,
-          options: {
-            data: {
-              full_name: fullName,
-              phone: formData.mobile,
-              role: 'resident' as const,
-              society_id: societyId
-            },
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        });
-
-        if (authError) throw authError;
-        if (!authData.user) throw new Error('Failed to create user');
-
-        userId = authData.user.id;
-
-        // Create profile with additional data
-        const profileData = {
-          ...finalMemberData,
-          id: userId,
-          user_id: userId,
-          // Ensure all required fields are present
-          role: 'resident' as const,
-          full_name: fullName,
-          email: formData.email,
-          phone: formData.mobile,
-          society_id: societyId
-        };
-        
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert(profileData);
-
-        if (profileError) throw profileError;
-      }
-
-      // Success - show success message and close dialog
-      toast({
-        title: 'Member Added Successfully',
-        description: `${formData.firstName} ${formData.lastName} has been added to the society.`,
-      });
-
-      // Call onSuccess callback if provided
-      if (onSuccess) {
-        onSuccess();
-      }
-
-      console.log('Member created successfully');
-      
-    } catch (error) {
-      console.error('Form submission error:', error);
-      toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to submit form. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+  type MemberPayload = {
+    email: string;
+    phone: string | null;
+    fullName: string;
+    societyId: string;
+    memberData: {
+      family_members?: string[] | null;
+      role?: MemberRole;
+      is_owner?: boolean;
+      unit_number?: string | null;
+      emergency_contact?: string | null;
+      vehicle_details?: string | null;
+      is_active?: boolean;
+    };
   };
 
-  // Handle form submission - removed duplicate
+  type CreateMemberResponse = {
+    status: 'success';
+    operation: 'created' | 'updated';
+    userId: string;
+    temporaryPassword: string | null;
+  };
+
+  const onSubmit = async (formData: FormValues): Promise<'created' | 'updated'> => {
+    console.log('onSubmit handler called with form data');
+    console.log('Starting form data processing...');
+    try {
+      const activeSocietyId = societyId || profile?.society_id || null;
+
+      console.log('Active Society ID:', activeSocietyId);
+      console.log('Profile Society ID:', profile?.society_id);
+      console.log('Prop Society ID:', societyId);
+
+      if (!activeSocietyId) {
+        console.error('Missing society ID context during member creation');
+        throw new Error('Unable to determine the society. Please refresh and try again.');
+      }
+
+      const normalizedEmail = formData.email.toLowerCase().trim();
+      const normalizedPhone = formData.mobile.trim();
+      const normalizedUnit = formData.flatNumber.trim();
+      const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`.replace(/\s+/g, ' ');
+
+      const familyMembersArray = formData.familyMembers && formData.familyMembers.length > 0
+        ? formData.familyMembers
+          .filter(member => member && member.name.trim() !== '')
+          .map(member => `${member.name.trim()} (${member.relation})`)
+        : [];
+
+      const vehicleNumbersArray = formData.vehicleNumbers && formData.vehicleNumbers.length > 0
+        ? formData.vehicleNumbers
+          .filter((vehicle): vehicle is string => typeof vehicle === 'string' && vehicle.trim() !== '')
+          .map(vehicle => vehicle.trim())
+        : [];
+
+      const vehicleDetails = vehicleNumbersArray.length > 0 ? vehicleNumbersArray.join(', ') : null;
+      const emergencyContactParts = [formData.emergencyContactName?.trim(), formData.emergencyContactNumber?.trim()]
+        .filter((value): value is string => !!value && value.length > 0);
+      const emergencyContact = emergencyContactParts.length > 0 ? emergencyContactParts.join(' | ') : null;
+
+      const memberProfileData = {
+        family_members: familyMembersArray.length > 0 ? familyMembersArray : null,
+        role: 'resident' as const,
+        is_owner: formData.membershipType === 'owner',
+        unit_number: normalizedUnit || null,
+        emergency_contact: emergencyContact,
+        vehicle_details: vehicleDetails,
+        is_active: true,
+      } satisfies MemberPayload['memberData'];
+
+      const functionPayload: MemberPayload = {
+        email: normalizedEmail,
+        phone: normalizedPhone || null,
+        fullName,
+        societyId: activeSocietyId,
+        memberData: memberProfileData,
+      };
+
+      console.log('Invoking create-member function with payload:', {
+        ...functionPayload,
+        phone: functionPayload.phone ? '***' : null,
+      });
+
+      const { data: functionData, error: functionError } = await supabase.functions.invoke<CreateMemberResponse>(
+        'create-member',
+        {
+          body: functionPayload,
+        }
+      );
+
+      if (functionError) {
+        console.error('create-member function returned error:', functionError);
+        throw new Error(functionError.message || 'Failed to save member. Please try again.');
+      }
+
+      if (!functionData || functionData.status !== 'success') {
+        console.error('Unexpected response from create-member function:', functionData);
+        throw new Error('Failed to save member. Please try again.');
+      }
+
+      if (functionData.temporaryPassword) {
+        console.log('Temporary password generated for new member:', functionData.temporaryPassword);
+      }
+
+      console.log('Member data persisted successfully with operation:', functionData.operation);
+
+      // Verify we are still logged in as the admin
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      console.log('Current auth user after operation:', currentUser?.email);
+      if (currentUser?.email === normalizedEmail) {
+        console.error('CRITICAL: Session switched to new user! This should not happen.');
+      }
+
+      return functionData.operation ?? 'created';
+    } catch (error) {
+      console.error('onSubmit error:', error);
+      throw error;
+    }
+  };
 
   const nextStep = async () => {
     const currentFields = steps[currentStep]?.fields || [];
@@ -532,7 +496,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           <User className="h-5 w-5 text-blue-600" />
           <h3 className="text-lg font-semibold text-gray-800">Personal Information</h3>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-2">
             <Label htmlFor="salutation" className="text-sm font-medium text-gray-700">
@@ -557,7 +521,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
               <p className="text-sm text-red-500 mt-1">{errors.salutation.message}</p>
             )}
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">
               First Name <span className="text-red-500">*</span>
@@ -572,7 +536,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
               <p className="text-sm text-red-500 mt-1">{errors.firstName.message}</p>
             )}
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="middleName" className="text-sm font-medium text-gray-700">
               Middle Name
@@ -584,7 +548,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
               className="focus-visible:ring-blue-500"
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">
               Last Name <span className="text-red-500">*</span>
@@ -600,7 +564,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             )}
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
           <div className="space-y-2">
             <Label htmlFor="mobile" className="text-sm font-medium text-gray-700">
@@ -620,7 +584,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
               <p className="text-sm text-red-500 mt-1">{errors.mobile.message}</p>
             )}
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium text-gray-700">
               Email <span className="text-red-500">*</span>
@@ -637,7 +601,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             )}
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
           <div className="space-y-2 relative z-10">
             <Label className="text-sm font-medium text-gray-700">
@@ -657,7 +621,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
               )}
             />
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="aadhaarNumber" className="text-sm font-medium text-gray-700">
               Aadhaar Number <span className="text-red-500">*</span>
@@ -675,14 +639,14 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           </div>
         </div>
       </div>
-      
+
       {isMinor && (
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
           <div className="flex items-center space-x-2 mb-6">
             <Shield className="h-5 w-5 text-amber-600" />
             <h4 className="text-md font-semibold text-gray-800">Guardian Information</h4>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="guardianName" className="text-sm font-medium text-gray-700">
@@ -698,7 +662,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
                 <p className="text-sm text-red-500 mt-1">{errors.guardianName.message}</p>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="guardianRelation" className="text-sm font-medium text-gray-700">
                 Relation <span className="text-red-500">*</span>
@@ -716,7 +680,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           </div>
         </div>
       )}
-      
+
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
         <div className="space-y-6">
           <div className="space-y-2">
@@ -734,7 +698,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
               <p className="text-sm text-red-500 mt-1">{errors.residentialAddress.message}</p>
             )}
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="officeAddress" className="text-sm font-medium text-gray-700">
               Office Address (Optional)
@@ -774,7 +738,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           <Plus className="mr-2 h-4 w-4" /> Add Family Member
         </Button>
       </div>
-      
+
       <div className="space-y-4">
         {familyMemberFields.map((field, index) => (
           <div key={field.id} className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 space-y-4">
@@ -791,7 +755,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
                 </Button>
               )}
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Name</Label>
@@ -805,7 +769,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
                   </p>
                 )}
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Relation</Label>
                 <Select
@@ -831,7 +795,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
                   </p>
                 )}
               </div>
-              
+
               <div className="space-y-2 relative z-10">
                 <Label className="text-sm font-medium text-gray-700">Date of Birth</Label>
                 <Controller
@@ -857,7 +821,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             </div>
           </div>
         ))}
-        
+
         <Button
           type="button"
           variant="outline"
@@ -880,7 +844,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
   const renderPropertyInfoStep = () => (
     <div className="space-y-6">
       <h3 className="text-lg font-medium">Property Information</h3>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="flatNumber">Flat/Apartment Number <span className="text-red-500">*</span></Label>
@@ -894,7 +858,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             <p className="text-sm text-red-500">{errors.flatNumber.message}</p>
           )}
         </div>
-        
+
         <div className="space-y-2">
           <Label>Type of Membership <span className="text-red-500">*</span></Label>
           <Select
@@ -914,7 +878,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           </Select>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Date of Possession <span className="text-red-500">*</span></Label>
@@ -930,7 +894,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             )}
           />
         </div>
-        
+
         <div className="space-y-2">
           <Label>Date of Share Transfer (if applicable)</Label>
           <Controller
@@ -947,12 +911,12 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           />
         </div>
       </div>
-      
+
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <h4 className="font-medium">Parking Slots</h4>
         </div>
-        
+
         {parkingSlotFields.map((field, index) => (
           <div key={field.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="space-y-2">
@@ -973,7 +937,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label>Slot Number</Label>
               <div className="flex space-x-2">
@@ -995,7 +959,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             </div>
           </div>
         ))}
-        
+
         <Button
           type="button"
           variant="outline"
@@ -1016,7 +980,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
   const renderDocumentsStep = () => (
     <div className="space-y-6">
       <h3 className="text-lg font-medium">Documents & Additional Information</h3>
-      
+
       <div className="space-y-4">
         <div className="space-y-2">
           <Label>Upload Documents</Label>
@@ -1040,7 +1004,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             </label>
           </div>
         </div>
-        
+
         <div className="space-y-2">
           <Label>Vehicle Registration Numbers</Label>
           {vehicleFields.map((field, index) => (
@@ -1070,7 +1034,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             <Plus className="mr-2 h-4 w-4" /> Add Vehicle
           </Button>
         </div>
-        
+
         <div className="space-y-2">
           <Label>Emergency Contact</Label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1095,7 +1059,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
           </div>
         </div>
       </div>
-      
+
       <div className="space-y-4 pt-4 border-t">
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
@@ -1112,7 +1076,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             <p className="text-sm text-red-500">{errors.agreeToTerms.message}</p>
           )}
         </div>
-        
+
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -1134,11 +1098,11 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
 
   const renderReviewStep = React.useCallback(() => {
     const formData = watch();
-    
+
     return (
       <div className="space-y-6">
         <h3 className="text-lg font-medium">Review & Submit</h3>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Personal Information</CardTitle>
@@ -1178,12 +1142,12 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
                 </>
               )}
             </div>
-            
+
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Residential Address</p>
               <p className="whitespace-pre-line">{formData.residentialAddress}</p>
             </div>
-            
+
             {formData.officeAddress && (
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Office Address</p>
@@ -1192,7 +1156,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             )}
           </CardContent>
         </Card>
-        
+
         {formData.familyMembers.length > 0 && (
           <Card>
             <CardHeader>
@@ -1222,7 +1186,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             </CardContent>
           </Card>
         )}
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Property Information</CardTitle>
@@ -1248,7 +1212,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
                 </div>
               )}
             </div>
-            
+
             {formData.parkingSlots.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Parking Slots</p>
@@ -1266,7 +1230,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             )}
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Additional Information</CardTitle>
@@ -1291,7 +1255,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             </div>
           </CardContent>
         </Card>
-        
+
         <div className="space-y-4 pt-4 border-t">
           {/* Terms and Conditions */}
           <div className="space-y-3">
@@ -1308,7 +1272,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             {errors.agreeToTerms && (
               <p className="text-sm text-red-500 ml-6">{errors.agreeToTerms.message}</p>
             )}
-            
+
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="agreeToPrivacy"
@@ -1322,7 +1286,7 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
             {errors.agreeToPrivacy && (
               <p className="text-sm text-red-500 ml-6">{errors.agreeToPrivacy.message}</p>
             )}
-            
+
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="confirmDetails"
@@ -1345,17 +1309,46 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
   }, [watch]);
 
   const termsAccepted = watch('agreeToTerms') && watch('agreeToPrivacy');
+  const formRef = React.useRef<HTMLFormElement>(null);
 
-  // Handle form submission
+  const handleInvalidSubmit = (errors: FieldErrors<FormValues>) => {
+    console.error('Form validation failed. Errors:', errors);
+    const firstErrorKey = Object.keys(errors)[0];
+    const firstErrorMessage = firstErrorKey ? errors[firstErrorKey]?.message : undefined;
+
+    toast({
+      title: 'Validation Error',
+      description: firstErrorMessage || 'Please fix the highlighted fields before submitting.',
+      variant: 'destructive',
+    });
+
+    // Focus the first invalid field
+    if (firstErrorKey) {
+      const invalidField = document.querySelector(`[name="${firstErrorKey}"]`);
+      if (invalidField instanceof HTMLElement) {
+        invalidField.focus();
+        invalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
   const handleFormSubmit = async (data: FormValues) => {
-    if (isSubmitting) return;
-    
+    console.log('Form submission initiated - handleFormSubmit called');
+    console.log('Current submission state - isSubmitting:', isSubmitting);
+
+    if (isSubmitting) {
+      console.log('Submission already in progress, preventing duplicate submission');
+      return;
+    }
+
     try {
+      console.log('Starting form submission process...');
       setIsSubmitting(true);
-      console.log('Form submission started with data:', data);
-      
+      console.log('Form data being submitted:', JSON.stringify(data, null, 2));
+
       // Check if terms and privacy are accepted
       if (!data.agreeToTerms || !data.agreeToPrivacy) {
+        console.warn('Terms not accepted - preventing submission');
         toast({
           title: 'Accept Terms Required',
           description: 'Please accept both the Terms of Service and Privacy Policy to continue.',
@@ -1364,172 +1357,190 @@ const AddMemberForm = ({ onSuccess, societyId }: AddMemberFormProps): JSX.Elemen
         setIsSubmitting(false);
         return;
       }
-      
+
+      console.log('All validations passed, proceeding with submission...');
+
       // Call the actual submission handler
-      await onSubmit(data);
-      
-      console.log('Form submitted successfully');
-      
+      console.log('Calling onSubmit handler...');
+      const result = await onSubmit(data);
+      console.log('onSubmit handler resolved successfully with result:', result);
+
+      console.log('Form submitted successfully at:', new Date().toISOString());
+      toast({
+        title: result === 'created' ? 'Member Added Successfully' : 'Member Updated',
+        description: result === 'created'
+          ? `${data.firstName} ${data.lastName} has been added to the society.`
+          : `${data.firstName} ${data.lastName}'s information has been refreshed.`,
+      });
+
+      if (onSuccess) {
+        console.log('Invoking onSuccess callback');
+        onSuccess();
+      }
+
     } catch (error) {
       console.error('Form submission error:', error);
       toast({
         title: 'Error',
-        description: 'Failed to submit form. Please try again.',
+        description: error instanceof Error ? error.message : 'Failed to submit form. Please try again.',
         variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
     }
   };
-  
+
+  const handleSubmitClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Submit button clicked');
+
+    try {
+      // Mark all fields as touched to trigger validation
+      const formValues = getValues();
+      await trigger(undefined, { shouldFocus: true });
+
+      // Manually check required fields
+      const requiredFields: (keyof FormValues)[] = [
+        'firstName', 'lastName', 'email', 'mobile', 'dateOfBirth', 'aadhaarNumber',
+        'flatNumber', 'membershipType', 'dateOfPossession', 'emergencyContactName',
+        'emergencyContactNumber', 'agreeToTerms', 'agreeToPrivacy'
+      ];
+
+      // Check if all required fields have values
+      const missingFields = requiredFields.filter(field => {
+        const value = formValues[field];
+
+        // Special handling for date fields
+        if (field === 'dateOfBirth' || field === 'dateOfPossession') {
+          return !(value instanceof Date && !isNaN(value.getTime()));
+        }
+
+        // Handle other field types
+        return value === undefined ||
+          value === null ||
+          value === '' ||
+          (Array.isArray(value) && value.length === 0) ||
+          (typeof value === 'object' && value !== null && Object.keys(value).length === 0);
+      });
+
+      if (missingFields.length > 0) {
+        console.log('Missing required fields:', missingFields);
+        toast({
+          title: 'Missing Information',
+          description: `Please fill in all required fields: ${missingFields.join(', ')}`,
+          variant: 'destructive',
+        });
+
+        // Focus on the first missing field
+        const firstMissingField = document.querySelector(`[name="${missingFields[0]}"]`);
+        if (firstMissingField) {
+          (firstMissingField as HTMLElement).focus();
+          (firstMissingField as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
+      // If we get here, all required fields have values
+      console.log('All required fields are filled, proceeding with submission...');
+
+      // Proceed with form submission
+      await handleFormSubmit(formValues);
+
+      // If we get here, submission was successful
+      console.log('Form submission completed successfully from button click');
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to submit form. Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   // Main form render
   return (
-    <form 
-      onSubmit={handleSubmit(handleFormSubmit)}
+    <form
+      ref={formRef}
+      onSubmit={(event) => {
+        console.log('Native form submit event received');
+        event.preventDefault();
+        handleSubmit(handleFormSubmit, handleInvalidSubmit)(event);
+      }}
       className="space-y-6"
     >
       {/* Progress Steps */}
-      <nav aria-label="Progress">
-        <ol className="flex items-center">
-          {steps.map((step, index) => (
-            <li
-              key={step.id}
-              className={`flex items-center ${
-                index !== steps.length - 1 ? 'flex-1' : ''
-              }`}
+      <div className="flex items-center justify-between mb-8">
+        {steps.map((step, index) => (
+          <React.Fragment key={step.name}>
+            <button
+              type="button"
+              onClick={() => setCurrentStep(index)}
+              className={`flex flex-col items-center ${currentStep >= index ? 'text-primary' : 'text-muted-foreground'}`}
             >
-              <button
-                type="button"
-                onClick={() => setCurrentStep(index)}
-                className={`flex flex-col items-center ${
-                  currentStep >= index ? 'text-primary' : 'text-muted-foreground'
-                }`}
-              >
-                <div
-                  className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                    currentStep >= index
-                      ? 'bg-primary text-primary-foreground'
-                      : 'border border-muted-foreground'
+              <div
+                className={`flex items-center justify-center w-8 h-8 rounded-full ${currentStep >= index
+                  ? 'bg-primary text-primary-foreground'
+                  : 'border border-muted-foreground'
                   }`}
-                >
-                  {index + 1}
-                </div>
-                <span className="mt-2 text-sm font-medium">{step.name}</span>
-              </button>
-              {index < steps.length - 1 && (
-                <div className="flex-1 h-0.5 mx-2 bg-muted">
-                  <div
-                    className={`h-full ${
-                      currentStep > index ? 'bg-primary' : 'bg-muted'
+              >
+                {index + 1}
+              </div>
+              <span className="mt-2 text-sm font-medium">{step.name}</span>
+            </button>
+            {index < steps.length - 1 && (
+              <div className="flex-1 h-0.5 mx-2 bg-muted">
+                <div
+                  className={`h-full ${currentStep > index ? 'bg-primary' : 'bg-muted'
                     }`}
-                    style={{
-                      width: currentStep > index ? '100%' : '0%',
-                      transition: 'width 0.3s ease',
-                    }}
-                  />
-                </div>
-              )}
-            </li>
-          ))}
-        </ol>
-      </nav>
-      
-      <Separator />
-      
+                  style={{
+                    width: currentStep > index ? '100%' : '0%',
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+
       {/* Form Content */}
       <div className="space-y-6">
         {renderStep()}
-        
-        <div className="flex justify-between pt-4 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={prevStep}
-            disabled={currentStep === 0}
-          >
-            Previous
+      </div>
+
+      {/* Navigation Buttons */}
+      <div className="flex justify-between pt-6">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={prevStep}
+          disabled={currentStep === 0}
+        >
+          Previous
+        </Button>
+
+        {currentStep < steps.length - 1 ? (
+          <Button type="button" onClick={nextStep}>
+            Next
           </Button>
-          
-          <div className="space-x-2">
-            {currentStep < steps.length - 1 ? (
+        ) : (
+          <Button
+            type="submit"
+            disabled={!termsAccepted || isSubmitting}
+            className="bg-primary hover:bg-primary/90"
+          >
+            {isSubmitting ? (
               <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    // Save as draft
-                    toast({
-                      title: 'Draft saved',
-                      description: 'Your progress has been saved as a draft.',
-                    });
-                  }}
-                >
-                  Save Draft
-                </Button>
-                <Button 
-                  type="button" 
-                  onClick={async () => {
-                    // Trigger validation for current step
-                    const fields = steps[currentStep].fields || [];
-                    const isValid = await trigger(fields);
-                    if (isValid) {
-                      // If this is the last step before review, check terms
-                      if (currentStep === steps.length - 2) {
-                        if (!watch('agreeToTerms') || !watch('agreeToPrivacy')) {
-                          toast({
-                            title: 'Accept Terms Required',
-                            description: 'Please accept both the Terms of Service and Privacy Policy to continue.',
-                            variant: 'destructive',
-                          });
-                          return;
-                        }
-                      }
-                      nextStep();
-                    } else {
-                      // Scroll to the first error
-                      const firstError = document.querySelector('.text-red-500');
-                      if (firstError) {
-                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }
-                    }
-                  }}
-                >
-                  Next
-                </Button>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Submitting...
               </>
             ) : (
-              <Button 
-                type="submit"
-                disabled={isSubmitting || !termsAccepted}
-                className={`relative ${!termsAccepted ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={(e) => {
-                  if (!termsAccepted) {
-                    e.preventDefault();
-                    toast({
-                      title: 'Terms Required',
-                      description: 'Please accept the terms and privacy policy to continue.',
-                      variant: 'destructive',
-                    });
-                  }
-                }}
-              >
-                {(!watch('agreeToTerms') || !watch('agreeToPrivacy')) && (
-                  <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
-                    !
-                  </div>
-                )}
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  'Submit & Create Member'
-                )}
-              </Button>
+              'Submit & Create Member'
             )}
-          </div>
-        </div>
+          </Button>
+        )}
       </div>
     </form>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 
@@ -13,6 +13,8 @@ interface Member {
   family_members?: string[];
   created_at: string;
   is_active: boolean;
+  unit?: string | null;
+  [key: string]: any;
 }
 
 interface UseMembersResult {
@@ -50,17 +52,42 @@ export function useMembers() {
     const fetchMembers = async () => {
       try {
         setData(prev => ({ ...prev, loading: true, error: null }));
-
-        const { data: members, error } = await supabase
+        
+        console.log('Fetching members for society_id:', profile.society_id);
+        
+        const { data: members, error, count } = await supabase
           .from('profiles')
-          .select('*')
+          .select('*', { count: 'exact' })
           .eq('society_id', profile.society_id)
           .eq('is_active', true)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
+        console.log('Raw members data from Supabase:', {
+          count,
+          members,
+          error,
+          societyId: profile.society_id
+        });
+
+        if (error) {
+          console.error('Supabase query error:', error);
+          throw error;
+        }
 
         const membersData = members || [];
+        console.log(`Found ${membersData.length} active members in society ${profile.society_id}`);
+        
+        if (membersData.length > 0) {
+          console.log('First member sample:', {
+            id: membersData[0].id,
+            full_name: membersData[0].full_name,
+            email: membersData[0].email,
+            unit_number: membersData[0].unit_number,
+            is_active: membersData[0].is_active,
+            role: membersData[0].role
+          });
+        }
+
         const owners = membersData.filter(m => m.is_owner === true).length;
         const tenants = membersData.filter(m => m.is_owner === false).length;
         const totalResidents = membersData.reduce((sum, m) => 

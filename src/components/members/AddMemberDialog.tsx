@@ -17,10 +17,12 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ onMemberAdded }) => {
 
   const canAddMembers = profile?.role && ['super_admin', 'society_admin'].includes(profile.role);
 
-  const handleMemberAdded = () => {
     setIsOpen(false);
     if (onMemberAdded) {
-      onMemberAdded();
+      // Small delay to allow toast to be seen before reload
+      setTimeout(() => {
+        onMemberAdded();
+      }, 1500);
     }
   };
 

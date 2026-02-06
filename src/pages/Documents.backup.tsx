@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,11 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
-import { useDocuments, type DocumentType, type SocietyDocument } from "@/hooks/useDocuments";
+import { useDocuments, type DocumentType } from "@/hooks/useDocuments";
 import { useMembers } from "@/hooks/useMembers";
 import { useHouses } from "@/hooks/useHouses";
 import { useToast } from "@/components/ui/use-toast";
-import { FileUp, Plus, User, FileText, Home, Search, Download, Trash2, Check, Clock } from "lucide-react";
+import { FileUp, Plus, User, FileText, Home, Search, Download, Trash2, CheckCircle, Clock } from "lucide-react";
 import { formatFileSize, cn } from "@/lib/utils";
 import { format } from "date-fns";
 
@@ -28,21 +28,18 @@ interface Member {
   updated_at?: string;
 }
 
-interface House {
+interface Profile {
   id: string;
-  unit: string;
-  owner_name?: string;
-  block?: string;
-  floor?: string;
+  email: string;
+  full_name: string;
+  role: string;
+  society_id: string;
+  society_name?: string;
+  unit?: string;
+  phone?: string;
   created_at?: string;
   updated_at?: string;
 }
-
-type Profile = {
-  id: string;
-  society_name?: string;
-  // Add other profile properties as needed
-};
 
 // Document categories for house documents
 const DOCUMENT_CATEGORIES = [
@@ -68,7 +65,7 @@ const RESIDENT_DOCUMENT_TYPES = [
 export default function Documents() {
   const { profile } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'resident' | 'house'>('resident');
+  const [activeTab, setActiveTab] = useState<DocumentType>('resident');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Document state
@@ -84,60 +81,27 @@ export default function Documents() {
   const { houses, loading: loadingHouses } = useHouses();
   const { 
     documents, 
-    loading, 
-    error, 
-    uploading,
+    loading: loadingDocuments, 
+    uploading, 
     uploadDocument, 
     updateDocumentStatus, 
     deleteDocument 
   } = useDocuments();
   
-  // Log the active tab and all documents for debugging
-  console.log('Active tab:', activeTab);
-  console.log('All documents:', documents);
-
-  // Get the unit for a document based on resident or house ID
-  const getUnitForDocument = useCallback((doc: SocietyDocument) => {
-    if (doc.document_type === 'resident' && doc.resident_id) {
-      const member = members.find(m => m.id === doc.resident_id);
-      return member?.unit_number || 'N/A';
-    } else if (doc.document_type === 'house' && doc.house_id) {
-      const house = houses.find(h => h.id === doc.house_id);
-      return house?.unit_number || 'N/A';
-    }
-    return 'N/A';
-  }, [members, houses]);
-
   // Filter documents based on active tab and search query
-  const filteredDocuments = documents.filter((doc: SocietyDocument) => {
+  const filteredDocuments = documents.filter(doc => {
     const matchesTab = doc.document_type === activeTab;
+    const matchesSearch = 
+      doc.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (doc.document_type === 'resident' 
+        ? (doc as any).resident_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (doc as any).unit?.toLowerCase().includes(searchQuery.toLowerCase())
+        : (doc as any).unit?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (doc as any).owner_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
     
-    // Skip if not matching the active tab
-    if (!matchesTab) return false;
-    
-    // If no search query, return all matching the active tab
-    if (searchQuery === '') return true;
-    
-    const searchLower = searchQuery.toLowerCase();
-    const fileNameMatch = doc.file_name.toLowerCase().includes(searchLower);
-    const unitNumber = getUnitForDocument(doc);
-    const unitMatch = unitNumber.toLowerCase().includes(searchLower);
-    
-    // Check resident-specific fields
-    if (doc.document_type === 'resident') {
-      const residentNameMatch = doc.resident_name?.toLowerCase().includes(searchLower) || false;
-      return fileNameMatch || residentNameMatch || unitMatch;
-    } 
-    // Check house-specific fields
-    else if (doc.document_type === 'house') {
-      const ownerNameMatch = doc.owner_name?.toLowerCase().includes(searchLower) || false;
-      return fileNameMatch || ownerNameMatch || unitMatch;
-    }
-    
-    return false;
+    return matchesTab && (searchQuery === '' || matchesSearch);
   });
-
-  console.log('Filtered documents:', filteredDocuments);
   
   // Set default selected resident/house when data loads
   useEffect(() => {
@@ -206,7 +170,7 @@ export default function Documents() {
   };
 
   const canUpload = profile?.role === "committee_member" || profile?.role === "society_admin" || profile?.role === "super_admin";
-  const isLoading = loadingMembers || loadingHouses || loading;
+  const isLoading = loadingMembers || loadingHouses || loadingDocuments;
 
   return (
     <div className="p-6 space-y-6">
@@ -219,17 +183,12 @@ export default function Documents() {
         </div>
       </div>
       
-      {isLoading ? (
+      {isLoading && (
         <div className="flex items-center justify-center p-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <span className="ml-2">Loading documents...</span>
         </div>
-      ) : error ? (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
-        </div>
-      ) : (
+      )}
       
       <Tabs 
         value={activeTab} 
@@ -326,52 +285,84 @@ export default function Documents() {
                                 {house.unit} • {house.owner_name || 'Owner not specified'}
                               </SelectItem>
                             ))}
-                          </SelectContent>
-                        </Select>
-                        {houses.length === 0 && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            No houses found. Please add houses first.
-                          </p>
-                        )}
-                      </div>
 
-                      <div>
-                        <Label className="mb-1 block">Category</Label>
-                        <Select value={category} onValueChange={setCategory}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DOCUMENT_CATEGORIES.map(cat => (
-                              <SelectItem key={cat} value={cat}>
-                                {cat}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div>
-                        <Label className="mb-1 block">Document Type</Label>
-                        <Select value={docType} onValueChange={setDocType}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {RESIDENT_DOCUMENT_TYPES.map(type => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
-                  )}
+const canUpload = profile?.role === "committee_member" || profile?.role === "society_admin" || profile?.role === "super_admin";
+const isLoading = loadingMembers || loadingHouses || loadingDocuments;
 
+return (
+<div className="p-6 space-y-6">
+  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div>
+      <h1 className="text-3xl font-bold tracking-tight">Document Management</h1>
+      <p className="text-muted-foreground">
+        Upload and manage society documents and resident files
+      </p>
+    </div>
+  </div>
+  
+  {isLoading && (
+    <div className="flex items-center justify-center p-8">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <span className="ml-2">Loading documents...</span>
+    </div>
+  )}
+  
+  <Tabs 
+    value={activeTab} 
+    onValueChange={(v) => setActiveTab(v as DocumentType)} 
+    className="space-y-6"
+  >
+    <TabsList className="grid w-full grid-cols-2 max-w-md">
+      <TabsTrigger value="resident" className="flex items-center gap-2">
+        <User className="h-4 w-4" /> Resident Documents
+      </TabsTrigger>
+      <TabsTrigger value="house" className="flex items-center gap-2">
+        <Home className="h-4 w-4" /> House Documents
+      </TabsTrigger>
+    </TabsList>
+    
+    <div className="grid gap-6 lg:grid-cols-3">
+      {/* Upload Form Card */}
+      <Card className="lg:col-span-1 shadow-card">
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <FileUp className="h-4 w-4" /> New {activeTab === 'resident' ? 'Resident' : 'House'} Upload
+          </CardTitle>
+          <CardDescription>
+            {activeTab === 'resident' 
+              ? 'Upload documents for residents' 
+              : 'Upload house-related documents'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {canUpload ? (
+            <form className="space-y-4" onSubmit={handleUpload}>
+              {activeTab === 'resident' ? (
+                <>
                   <div>
-                    <Label className="mb-1 block">File</Label>
-                    <Input 
+                    <Label className="mb-1 block">Resident</Label>
+                    <Select 
+                      value={residentId} 
+                      onValueChange={setResidentId}
+                      disabled={members.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={
+                          members.length === 0 ? 'No residents found' : 'Select resident'
+                        } />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {members.map(member => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.full_name} • {member.unit}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {members.length === 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        No residents found. Please add residents first.
+                      </p>
                       type="file" 
                       accept=".pdf,.jpg,.jpeg,.png" 
                       onChange={(e) => setFile(e.target.files?.[0] ?? null)} 
@@ -457,54 +448,66 @@ export default function Documents() {
                   </TableHeader>
                   <TableBody>
                     {filteredDocuments.length > 0 ? (
-                      filteredDocuments.map((doc: SocietyDocument) => {
-                        const unitNumber = getUnitForDocument(doc);
-                        const displayName = doc.document_type === 'resident' 
-                          ? doc.resident_name || 'Resident' 
-                          : doc.owner_name || 'Owner';
-                        
-                        return (
-                          <TableRow key={doc.id} className="hover:bg-muted/50">
-                            <TableCell className="whitespace-nowrap">
-                              <div className="flex items-center gap-2">
-                                {doc.document_type === 'resident' ? (
+                      filteredDocuments.map(doc => (
+                        <TableRow key={doc.id} className="hover:bg-muted/50">
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              {doc.document_type === 'resident' ? (
+                                <>
                                   <User className="h-4 w-4 text-muted-foreground" />
-                                ) : (
-                                  <Home className="h-4 w-4 text-muted-foreground" />
-                                )}
-                                <div>
-                                  <div className="font-medium">{displayName}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    Unit {unitNumber}
+                                  <div>
+                                    <div className="font-medium">{(doc as any).resident_name || 'Unknown'}</div>
+                                    <div className="text-xs text-muted-foreground">{(doc as any).unit || 'N/A'}</div>
                                   </div>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <div className="font-medium">{doc.file_name}</div>
+                                </>
+                              ) : (
+                                <>
+                                  <Home className="h-4 w-4 text-muted-foreground" />
+                                  <div>
+                                    <div className="font-medium">{(doc as any).unit || 'N/A'}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {(doc as any).owner_name || 'Owner not specified'}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span>{doc.type}</span>
+                              {doc.document_type === 'house' && (
                                 <span className="text-xs text-muted-foreground">
-                                  {formatFileSize(doc.file_size)} • {doc.file_type}
+                                  {(doc as any).category}
                                 </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge 
-                                variant={doc.status === 'verified' ? 'default' : 'outline'}
-                                className={cn(
-                                  'flex items-center gap-1',
-                                  doc.status === 'verified' 
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
-                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                )}
-                              >
-                                {doc.status === 'verified' ? (
-                                  <Check className="h-3 w-3 mr-1" />
-                                ) : (
-                                  <Clock className="h-3 w-3 mr-1" />
-                                )}
-                                {doc.status === 'verified' ? 'Verified' : 'Pending'}
-                              </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{doc.file_name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatFileSize(doc.file_size)} • {doc.file_type}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={doc.status === 'verified' ? 'default' : 'outline'}
+                              className={cn(
+                                'flex items-center gap-1',
+                                doc.status === 'verified' 
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              )}
+                            >
+                              {doc.status === 'verified' ? (
+                                <CheckCircle className="h-3 w-3" />
+                              ) : (
+                                <Clock className="h-3 w-3" />
+                              )}
+                              {doc.status === 'verified' ? 'Verified' : 'Pending'}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="text-sm">
@@ -551,7 +554,79 @@ export default function Documents() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      )})
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                            <FileText className="h-8 w-8" />
+                            <p>No documents found</p>
+                            <p className="text-sm">
+                              {searchQuery 
+                                ? 'Try a different search term' 
+                                : activeTab === 'resident'
+                                  ? 'Upload a resident document to get started'
+                                  : 'Upload a house document to get started'}
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                            <div className="flex items-center gap-1">
+                              {doc.status === "verified" ? (
+                                <>
+                                  <CheckCircle className="h-3.5 w-3.5 text-success mr-1" />
+                                  <span>Verified</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="h-3.5 w-3.5 text-warning-foreground mr-1" />
+                                  <span>Pending</span>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {doc.uploaded_by || 'System'}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="text-sm">
+                              {format(new Date(doc.created_at), 'MMM d, yyyy')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(doc.created_at), 'h:mm a')}
+                            </div>
+                          </TableCell>
+                          <TableCell className="w-10">
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => window.open(doc.file_url, '_blank')}
+                              >
+                                <Download className="h-4 w-4" />
+                                <span className="sr-only">Download</span>
+                              </Button>
+                              {canUpload && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={async () => {
+                                    if (confirm('Are you sure you want to delete this document?')) {
+                                      await deleteDocument(doc.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Delete</span>
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
                     ) : (
                       <TableRow>
                         <TableCell colSpan={7} className="h-24 text-center">
@@ -559,17 +634,17 @@ export default function Documents() {
                             <FileText className="h-8 w-8 mb-2 opacity-40" />
                             <p>No documents found</p>
                             <p className="text-sm">
-                              {searchQuery 
-                                ? 'No documents match your search. Try a different term.'
-                                : activeTab === 'resident' ? (
-                                  members.length === 0 
-                                    ? 'No residents found. Add residents first.'
-                                    : 'No resident documents found. Upload a document to get started.'
-                                ) : (
-                                  houses.length === 0
-                                    ? 'No houses found. Add houses first.'
-                                    : 'No house documents found. Upload a document to get started.'
-                                )}
+                              {searchQuery ? (
+                                'No documents match your search. Try a different term.'
+                              ) : activeTab === 'resident' ? (
+                                members.length === 0 
+                                  ? 'No residents found. Add residents first.'
+                                  : 'No resident documents found. Upload a document to get started.'
+                              ) : (
+                                houses.length === 0
+                                  ? 'No houses found. Add houses first.'
+                                  : 'No house documents found. Upload a document to get started.'
+                              )}
                             </p>
                           </div>
                         </TableCell>
@@ -582,7 +657,6 @@ export default function Documents() {
           </Card>
         </div>
       </Tabs>
-      )}
     </div>
   );
 }
